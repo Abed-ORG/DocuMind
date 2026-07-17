@@ -1,0 +1,233 @@
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: 72px;
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+}
+
+.site-header-container {
+  width: min(1200px, calc(100% - 40px));
+  height: 100%;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.site-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text);
+  font-size: 1.2rem;
+  font-weight: 800;
+  text-decoration: none;
+  letter-spacing: 0;
+}
+
+.site-logo-mark {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-card);
+  color: #ffffff;
+  background: var(--color-primary);
+  box-shadow: 0 1px 3px rgba(79, 70, 229, 0.28);
+}
+
+.site-navigation {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-login-link {
+  min-height: 40px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-muted);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.header-login-link:hover {
+  color: var(--color-text);
+}
+
+.header-signup-button,
+.header-dashboard-button {
+  min-height: 40px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-button);
+  color: #ffffff;
+  background: var(--color-primary);
+  font-size: 0.92rem;
+  font-weight: 750;
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.header-dashboard-button {
+  color: var(--color-primary);
+  border: 1px solid rgba(79, 70, 229, 0.2);
+  background: #eef2ff;
+}
+
+.header-signup-button:hover {
+  background: var(--color-primary-hover);
+}
+
+.header-dashboard-button:hover {
+  background: #e0e7ff;
+}
+
+.profile-menu-wrapper {
+  position: relative;
+}
+
+.avatar-button {
+  min-height: 42px;
+  padding: 0 9px 0 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  color: var(--color-muted);
+  background: #ffffff;
+  font-weight: 700;
+}
+
+.avatar-initials {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--color-primary), #0f766e);
+  font-size: 0.78rem;
+}
+
+.profile-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(310px, calc(100vw - 28px));
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: #ffffff;
+  box-shadow: var(--shadow-md);
+}
+
+.profile-menu-header {
+  padding: 8px 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.profile-menu-header strong,
+.profile-menu-header span {
+  display: block;
+}
+
+.profile-menu-header strong {
+  color: var(--color-text);
+  font-size: 0.96rem;
+}
+
+.profile-menu-header span {
+  margin-top: 3px;
+  color: var(--color-subtle);
+  font-size: 0.84rem;
+}
+
+.storage-usage {
+  padding: 12px 8px;
+}
+
+.storage-copy {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.storage-copy strong {
+  color: var(--color-text);
+}
+
+.storage-track {
+  height: 7px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eef2f7;
+}
+
+.storage-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-success);
+}
+
+.profile-menu-item {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: var(--radius-button);
+  color: var(--color-muted);
+  background: transparent;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: none;
+}
+
+.profile-menu-item:hover {
+  color: var(--color-text);
+  background: var(--color-surface-muted);
+}
+
+.logout-menu-item {
+  color: var(--color-danger);
+}
+
+@media (max-width: 650px) {
+  .site-header-container {
+    width: min(100% - 28px, 1200px);
+  }
+
+  .site-logo {
+    font-size: 1.05rem;
+  }
+
+  .site-logo-mark {
+    width: 32px;
+    height: 32px;
+  }
+
+  .header-login-link {
+    display: none;
+  }
+
+  .header-signup-button,
+  .header-dashboard-button {
+    padding: 0 11px;
+    font-size: 0.82rem;
+  }
+}
