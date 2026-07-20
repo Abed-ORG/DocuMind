@@ -256,6 +256,7 @@
   margin: auto 0 0;
   display: grid;
   gap: 10px;
+  font-size: 0.83rem;
 }
 
 .workspace-stats div {
@@ -313,6 +314,10 @@
   margin: 0 0 20px;
   color: var(--color-subtle);
   line-height: 1.6;
+}
+
+.dashboard-state svg {
+  color: var(--color-primary);
 }
 
 .modal-backdrop {

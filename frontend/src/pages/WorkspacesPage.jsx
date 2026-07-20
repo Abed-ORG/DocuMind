@@ -1,16 +1,28 @@
-import { useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Link } from "react-router";
 import {
+  AlertCircle,
   Edit3,
   FileText,
   FolderPlus,
   Layers3,
+  Loader2,
   Plus,
+  RefreshCw,
   Sparkles,
 } from "lucide-react";
 
 import documindHero from "../assets/documind-hero.png";
 import { useAuth } from "../context/AuthContext";
+import {
+  createWorkspace,
+  getWorkspaces,
+  updateWorkspace,
+} from "../services/api";
 import "./WorkspacePages.css";
 
 const colorOptions = [
@@ -24,48 +36,83 @@ const colorOptions = [
   "#475569",
 ];
 
-const initialWorkspaces = [
-  {
-    id: "market-research",
-    name: "Market Research",
-    description:
-      "Competitor filings, analyst notes, and quarterly commentary.",
-    color: "#4F46E5",
-    documents: 18,
-    pages: 642,
-    lastActivity: "12 minutes ago",
-  },
-  {
-    id: "contract-review",
-    name: "Contract Review",
-    description:
-      "Master service agreements, redlines, and renewal exhibits.",
-    color: "#0F766E",
-    documents: 9,
-    pages: 214,
-    lastActivity: "Yesterday",
-  },
-  {
-    id: "policy-library",
-    name: "Policy Library",
-    description:
-      "Internal operating policies and compliance references.",
-    color: "#F59E0B",
-    documents: 27,
-    pages: 1086,
-    lastActivity: "Jul 12, 2026",
-  },
-];
-
 const emptyWorkspace = {
   name: "",
   description: "",
   color: colorOptions[0],
 };
 
+const activityTimestampFormatter =
+  new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+function formatActivityTimestamp(value) {
+  if (!value) {
+    return "No activity yet";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "No activity yet";
+  }
+
+  return activityTimestampFormatter.format(date);
+}
+
+function getStatValue(value) {
+  const numberValue = Number(value);
+
+  return Number.isFinite(numberValue)
+    ? numberValue
+    : 0;
+}
+
+function normalizeWorkspace(workspace) {
+  const activityTimestamp =
+    workspace.lastActivity ??
+    workspace.updatedAt ??
+    workspace.createdAt;
+
+  return {
+    id: workspace.id ?? workspace._id,
+    name: workspace.name,
+    description: workspace.description ?? "",
+    color: workspace.color ?? colorOptions[0],
+    documents: getStatValue(
+      workspace.documentCount ??
+        workspace.documents
+    ),
+    pages: getStatValue(
+      workspace.pageCount ??
+        workspace.pages
+    ),
+    lastActivity:
+      formatActivityTimestamp(
+        activityTimestamp
+      ),
+  };
+}
+
+function buildWorkspacePayload(formData) {
+  return {
+    name: formData.name.trim(),
+    description:
+      formData.description.trim(),
+    color: formData.color,
+  };
+}
+
 function WorkspaceModal({
   mode,
   workspace,
+  error,
+  isSubmitting,
   onCancel,
   onSubmit,
 }) {
@@ -116,6 +163,12 @@ function WorkspaceModal({
         </header>
 
         <form className="modal-form" onSubmit={handleSubmit}>
+          {error && (
+            <div className="alert alert-error">
+              {error}
+            </div>
+          )}
+
           <div className="form-group">
             <label htmlFor="workspace-name">Workspace name</label>
             <input
@@ -123,6 +176,7 @@ function WorkspaceModal({
               name="name"
               value={formData.name}
               onChange={handleChange}
+              disabled={isSubmitting}
               required
               placeholder="Example: Investor diligence"
             />
@@ -137,6 +191,7 @@ function WorkspaceModal({
               name="description"
               value={formData.description}
               onChange={handleChange}
+              disabled={isSubmitting}
               placeholder="Optional context for this workspace"
             />
           </div>
@@ -154,6 +209,7 @@ function WorkspaceModal({
                   }
                   type="button"
                   style={{ background: color }}
+                  disabled={isSubmitting}
                   aria-label={`Choose ${color}`}
                   onClick={() =>
                     setFormData((current) => ({
@@ -170,12 +226,21 @@ function WorkspaceModal({
             <button
               className="secondary-action"
               type="button"
+              disabled={isSubmitting}
               onClick={onCancel}
             >
               Cancel
             </button>
-            <button className="primary-action" type="submit">
-              {isEditing ? "Save" : "Create"}
+            <button
+              className="primary-action"
+              type="submit"
+              disabled={isSubmitting}
+            >
+              {isSubmitting
+                ? "Saving..."
+                : isEditing
+                  ? "Save"
+                  : "Create"}
             </button>
           </footer>
         </form>
@@ -185,13 +250,76 @@ function WorkspaceModal({
 }
 
 function WorkspacesPage() {
-  const { user } = useAuth();
+  const {
+    token,
+    user,
+  } = useAuth();
 
   const [workspaces, setWorkspaces] =
-    useState(initialWorkspaces);
+    useState([]);
+
+  const [isLoading, setIsLoading] =
+    useState(true);
+
+  const [loadError, setLoadError] =
+    useState("");
+
+  const [reloadKey, setReloadKey] =
+    useState(0);
 
   const [modalState, setModalState] =
     useState(null);
+
+  const [modalError, setModalError] =
+    useState("");
+
+  const [isSaving, setIsSaving] =
+    useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadWorkspaces() {
+      if (!token) {
+        setWorkspaces([]);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      setLoadError("");
+
+      try {
+        const response =
+          await getWorkspaces(token);
+
+        if (isMounted) {
+          setWorkspaces(
+            (response.workspaces ?? []).map(
+              normalizeWorkspace
+            )
+          );
+        }
+      } catch (error) {
+        if (isMounted) {
+          setLoadError(
+            error.message ||
+              "Unable to load workspaces."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadWorkspaces();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [token, reloadKey]);
 
   const totals = useMemo(
     () =>
@@ -209,6 +337,7 @@ function WorkspacesPage() {
   );
 
   function openCreateModal() {
+    setModalError("");
     setModalState({
       mode: "create",
       workspace: emptyWorkspace,
@@ -216,42 +345,82 @@ function WorkspacesPage() {
   }
 
   function openEditModal(workspace) {
+    setModalError("");
     setModalState({
       mode: "edit",
       workspace,
     });
   }
 
-  function handleModalSubmit(formData) {
-    if (modalState.mode === "edit") {
-      setWorkspaces((current) =>
-        current.map((workspace) =>
-          workspace.id === modalState.workspace.id
-            ? {
-                ...workspace,
-                ...formData,
-                lastActivity: "Just now",
-              }
-            : workspace
-        )
-      );
-    } else {
-      setWorkspaces((current) => [
-        {
-          ...formData,
-          id: formData.name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/(^-|-$)/g, ""),
-          documents: 0,
-          pages: 0,
-          lastActivity: "Just now",
-        },
-        ...current,
-      ]);
+  function closeModal() {
+    if (isSaving) {
+      return;
     }
 
     setModalState(null);
+    setModalError("");
+  }
+
+  async function handleModalSubmit(formData) {
+    if (!token) {
+      setModalError(
+        "Authentication is required."
+      );
+      return;
+    }
+
+    const payload =
+      buildWorkspacePayload(formData);
+
+    setIsSaving(true);
+    setModalError("");
+
+    try {
+      if (modalState.mode === "edit") {
+        const response =
+          await updateWorkspace(
+            modalState.workspace.id,
+            payload,
+            token
+          );
+
+        const updatedWorkspace =
+          normalizeWorkspace(
+            response.workspace
+          );
+
+        setWorkspaces((current) =>
+          current.map((workspace) =>
+            workspace.id ===
+            updatedWorkspace.id
+              ? updatedWorkspace
+              : workspace
+          )
+        );
+      } else {
+        const response =
+          await createWorkspace(
+            payload,
+            token
+          );
+
+        setWorkspaces((current) => [
+          normalizeWorkspace(
+            response.workspace
+          ),
+          ...current,
+        ]);
+      }
+
+      setModalState(null);
+    } catch (error) {
+      setModalError(
+        error.message ||
+          "Unable to save workspace."
+      );
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -275,6 +444,7 @@ function WorkspacesPage() {
           <button
             className="primary-action"
             type="button"
+            disabled={isLoading}
             onClick={openCreateModal}
           >
             <FolderPlus size={18} />
@@ -300,7 +470,31 @@ function WorkspacesPage() {
           </article>
         </div>
 
-        {workspaces.length === 0 ? (
+        {isLoading ? (
+          <div className="empty-state dashboard-state">
+            <Loader2 className="spinner" size={34} />
+            <h2>Loading workspaces</h2>
+            <p>
+              Fetching your workspace list from the API.
+            </p>
+          </div>
+        ) : loadError ? (
+          <div className="empty-state dashboard-state">
+            <AlertCircle size={34} />
+            <h2>Unable to load workspaces</h2>
+            <p>{loadError}</p>
+            <button
+              className="secondary-action"
+              type="button"
+              onClick={() =>
+                setReloadKey((current) => current + 1)
+              }
+            >
+              <RefreshCw size={16} />
+              Retry
+            </button>
+          </div>
+        ) : workspaces.length === 0 ? (
           <div className="empty-state">
             <img src={documindHero} alt="" />
             <h2>Create your first workspace</h2>
@@ -353,7 +547,10 @@ function WorkspacesPage() {
                   to={`/workspace/${workspace.id}/documents`}
                 >
                   <h2>{workspace.name}</h2>
-                  <p>{workspace.description}</p>
+                  <p>
+                    {workspace.description ||
+                      "No description yet."}
+                  </p>
                 </Link>
 
                 <dl className="workspace-stats">
@@ -380,7 +577,9 @@ function WorkspacesPage() {
         <WorkspaceModal
           mode={modalState.mode}
           workspace={modalState.workspace}
-          onCancel={() => setModalState(null)}
+          error={modalError}
+          isSubmitting={isSaving}
+          onCancel={closeModal}
           onSubmit={handleModalSubmit}
         />
       )}

@@ -69,3 +69,36 @@ export function getCurrentUser(token) {
 export function checkApiHealth() {
   return request("/health");
 }
+
+export function getWorkspaces(token) {
+  return request("/workspaces", {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export function createWorkspace(workspaceData, token) {
+  return request("/workspaces", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(workspaceData),
+  });
+}
+
+export function updateWorkspace(
+  workspaceId,
+  workspaceData,
+  token
+) {
+  return request(`/workspaces/${workspaceId}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(workspaceData),
+  });
+}

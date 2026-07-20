@@ -4,6 +4,7 @@ import cors from "cors";
 import { env } from "./config/env.js";
 import authRoutes from "./routes/authRoutes.js";
 import healthRoutes from "./routes/healthRoutes.js";
+import workspaceRoutes from "./routes/workspaceRoutes.js";
 import { notFound } from "./middleware/notFound.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
@@ -30,6 +31,7 @@ app.get("/", (_req, res) => {
 
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/workspaces", workspaceRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
