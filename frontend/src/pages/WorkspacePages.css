@@ -1,5 +1,6 @@
 .primary-action,
 .secondary-action,
+.danger-action,
 .icon-button {
   display: inline-flex;
   align-items: center;
@@ -36,6 +37,18 @@
   background: var(--color-surface-muted);
 }
 
+.danger-action {
+  min-height: 40px;
+  padding: 0 13px;
+  border: 0;
+  color: #ffffff;
+  background: #dc2626;
+}
+
+.danger-action:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
 .icon-button {
   width: 36px;
   height: 36px;
@@ -47,6 +60,15 @@
 .icon-button:hover {
   color: var(--color-text);
   background: var(--color-surface-muted);
+}
+
+.danger-icon-button {
+  color: #b42336;
+}
+
+.danger-icon-button:hover {
+  color: #991b1b;
+  background: #fef2f2;
 }
 
 .badge {
@@ -226,6 +248,11 @@
   gap: 12px;
 }
 
+.workspace-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .workspace-color-dot {
   width: 13px;
   height: 13px;
@@ -333,6 +360,52 @@
 .workspace-modal {
   width: min(100%, 540px);
   padding: 24px;
+}
+
+.delete-workspace-modal {
+  display: grid;
+  gap: 18px;
+}
+
+.delete-warning {
+  padding: 14px;
+  display: flex;
+  gap: 12px;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-card);
+  color: #991b1b;
+  background: #fef2f2;
+}
+
+.delete-warning svg {
+  flex: 0 0 auto;
+}
+
+.delete-warning p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.delete-target {
+  min-height: 48px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: #f8fafc;
+}
+
+.delete-target span {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.delete-target strong {
+  color: var(--color-text);
 }
 
 .modal-header h2,

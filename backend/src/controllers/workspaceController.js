@@ -1,4 +1,5 @@
 import Workspace from "../models/Workspace.js";
+import { cascadeDeleteWorkspaceData } from "../services/workspaceCascadeService.js";
 
 function formatWorkspace(workspace) {
   return {
@@ -196,7 +197,7 @@ export async function updateWorkspace(req, res, next) {
 
 export async function deleteWorkspace(req, res, next) {
   try {
-    const workspace = await Workspace.findOneAndDelete({
+    const workspace = await Workspace.findOne({
       _id: req.params.id,
       userId: req.user._id,
     });
@@ -208,9 +209,24 @@ export async function deleteWorkspace(req, res, next) {
       });
     }
 
+    const deletedRelatedData =
+      await cascadeDeleteWorkspaceData({
+        workspaceId: workspace._id,
+      });
+
+    await Workspace.deleteOne({
+      _id: workspace._id,
+      userId: req.user._id,
+    });
+
     return res.status(200).json({
       success: true,
-      message: "Workspace deleted successfully.",
+      message:
+        "Workspace and related data deleted successfully.",
+      deleted: {
+        workspace: 1,
+        ...deletedRelatedData,
+      },
     });
   } catch (error) {
     next(error);

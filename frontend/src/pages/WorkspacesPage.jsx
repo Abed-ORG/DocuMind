@@ -6,6 +6,7 @@ import {
 import { Link } from "react-router";
 import {
   AlertCircle,
+  AlertTriangle,
   Edit3,
   FileText,
   FolderPlus,
@@ -14,12 +15,14 @@ import {
   Plus,
   RefreshCw,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 
 import documindHero from "../assets/documind-hero.png";
 import { useAuth } from "../context/AuthContext";
 import {
   createWorkspace,
+  deleteWorkspace as deleteWorkspaceRequest,
   getWorkspaces,
   updateWorkspace,
 } from "../services/api";
@@ -234,6 +237,75 @@ function WorkspaceModal({
   );
 }
 
+function DeleteWorkspaceDialog({
+  workspace,
+  error,
+  isDeleting,
+  onCancel,
+  onConfirm,
+}) {
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="workspace-modal delete-workspace-modal"
+        aria-modal="true"
+        role="dialog"
+        aria-labelledby="delete-workspace-title"
+      >
+        <header className="modal-header">
+          <div>
+            {/* <p className="eyebrow">Delete Workspace</p> */}
+            <h2 id="delete-workspace-title">
+              Delete this workspace?
+            </h2>
+          </div>
+        </header>
+
+        <div className="delete-warning">
+          <AlertTriangle size={22} />
+          <p>
+            This will permanently delete the workspace and all related
+            documents, chunks, embeddings, conversations, messages, and
+            summaries.
+          </p>
+        </div>
+
+        <div className="delete-target">
+          <span style={{ background: workspace.color }} />
+          <strong>{workspace.name}</strong>
+        </div>
+
+        {error && (
+          <div className="alert alert-error">
+            {error}
+          </div>
+        )}
+
+        <footer className="modal-actions">
+          <button
+            className="secondary-action"
+            type="button"
+            disabled={isDeleting}
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <button
+            className="danger-action"
+            type="button"
+            disabled={isDeleting}
+            onClick={onConfirm}
+          >
+            {isDeleting
+              ? "Deleting..."
+              : "Delete Workspace"}
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 function WorkspacesPage() {
   const {
     token,
@@ -255,10 +327,19 @@ function WorkspacesPage() {
   const [modalState, setModalState] =
     useState(null);
 
+  const [deleteState, setDeleteState] =
+    useState(null);
+
   const [modalError, setModalError] =
     useState("");
 
+  const [deleteError, setDeleteError] =
+    useState("");
+
   const [isSaving, setIsSaving] =
+    useState(false);
+
+  const [isDeleting, setIsDeleting] =
     useState(false);
 
   useEffect(() => {
@@ -337,6 +418,13 @@ function WorkspacesPage() {
     });
   }
 
+  function openDeleteDialog(workspace) {
+    setDeleteError("");
+    setDeleteState({
+      workspace,
+    });
+  }
+
   function closeModal() {
     if (isSaving) {
       return;
@@ -344,6 +432,15 @@ function WorkspacesPage() {
 
     setModalState(null);
     setModalError("");
+  }
+
+  function closeDeleteDialog() {
+    if (isDeleting) {
+      return;
+    }
+
+    setDeleteState(null);
+    setDeleteError("");
   }
 
   async function handleModalSubmit(formData) {
@@ -405,6 +502,47 @@ function WorkspacesPage() {
       );
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleDeleteWorkspace() {
+    if (!token) {
+      setDeleteError(
+        "Authentication is required."
+      );
+      return;
+    }
+
+    const workspace = deleteState?.workspace;
+
+    if (!workspace) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError("");
+
+    try {
+      await deleteWorkspaceRequest(
+        workspace.id,
+        token
+      );
+
+      setWorkspaces((current) =>
+        current.filter(
+          (currentWorkspace) =>
+            currentWorkspace.id !== workspace.id
+        )
+      );
+
+      setDeleteState(null);
+    } catch (error) {
+      setDeleteError(
+        error.message ||
+          "Unable to delete workspace."
+      );
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -517,14 +655,24 @@ function WorkspacesPage() {
                     className="workspace-color-dot"
                     style={{ background: workspace.color }}
                   />
-                  <button
-                    className="icon-button"
-                    type="button"
-                    aria-label={`Edit ${workspace.name}`}
-                    onClick={() => openEditModal(workspace)}
-                  >
-                    <Edit3 size={17} />
-                  </button>
+                  <div className="workspace-card-actions">
+                    <button
+                      className="icon-button"
+                      type="button"
+                      aria-label={`Edit ${workspace.name}`}
+                      onClick={() => openEditModal(workspace)}
+                    >
+                      <Edit3 size={17} />
+                    </button>
+                    <button
+                      className="icon-button danger-icon-button"
+                      type="button"
+                      aria-label={`Delete ${workspace.name}`}
+                      onClick={() => openDeleteDialog(workspace)}
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
                 </div>
 
                 <Link
@@ -566,6 +714,16 @@ function WorkspacesPage() {
           isSubmitting={isSaving}
           onCancel={closeModal}
           onSubmit={handleModalSubmit}
+        />
+      )}
+
+      {deleteState && (
+        <DeleteWorkspaceDialog
+          workspace={deleteState.workspace}
+          error={deleteError}
+          isDeleting={isDeleting}
+          onCancel={closeDeleteDialog}
+          onConfirm={handleDeleteWorkspace}
         />
       )}
     </section>

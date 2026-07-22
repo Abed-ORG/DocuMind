@@ -102,3 +102,12 @@ export function updateWorkspace(
     body: JSON.stringify(workspaceData),
   });
 }
+
+export function deleteWorkspace(workspaceId, token) {
+  return request(`/workspaces/${workspaceId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
