@@ -89,6 +89,7 @@
 }
 
 .badge.success,
+.status-uploaded,
 .status-ready {
   color: #047857;
   background: #d1fae5;
@@ -682,6 +683,11 @@
   color: var(--color-primary);
 }
 
+.upload-zone.is-uploading {
+  pointer-events: none;
+  opacity: 0.78;
+}
+
 .upload-zone strong {
   color: var(--color-text);
   font-size: 1.06rem;
@@ -690,6 +696,10 @@
 .upload-zone span {
   color: var(--color-subtle);
   font-size: 0.9rem;
+}
+
+.upload-error {
+  margin-top: 12px;
 }
 
 .document-toolbar {

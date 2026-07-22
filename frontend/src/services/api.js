@@ -6,12 +6,18 @@ async function request(
   endpoint,
   options = {}
 ) {
+  const isFormData =
+    typeof FormData !== "undefined" &&
+    options.body instanceof FormData;
+
   const response = await fetch(
     `${API_BASE_URL}${endpoint}`,
     {
       ...options,
       headers: {
-        "Content-Type": "application/json",
+        ...(!isFormData && {
+          "Content-Type": "application/json",
+        }),
         ...options.headers,
       },
     }
@@ -119,4 +125,24 @@ export function deleteWorkspace(workspaceId, token) {
       Authorization: `Bearer ${token}`,
     },
   });
+}
+
+export function uploadDocument(
+  workspaceId,
+  file,
+  token
+) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return request(
+    `/workspaces/${workspaceId}/documents`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    }
+  );
 }

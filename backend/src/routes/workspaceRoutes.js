@@ -7,8 +7,10 @@ import {
   getWorkspaces,
   updateWorkspace,
 } from "../controllers/workspaceController.js";
+import { createDocument } from "../controllers/documentController.js";
 
 import { protect } from "../middleware/authMiddleware.js";
+import { uploadDocumentFile } from "../middleware/documentUpload.js";
 import { validateRequest } from "../middleware/validateRequest.js";
 
 import {
@@ -29,6 +31,14 @@ router
     validateRequest,
     createWorkspace
   );
+
+router.post(
+  "/:id/documents",
+  workspaceIdValidator,
+  validateRequest,
+  uploadDocumentFile,
+  createDocument
+);
 
 router
   .route("/:id")

@@ -43,6 +43,7 @@ import documindHero from "../assets/documind-hero.png";
 import { useAuth } from "../context/AuthContext";
 import {
   getWorkspace as getWorkspaceRequest,
+  uploadDocument,
 } from "../services/api";
 import "./WorkspacePages.css";
 
@@ -132,11 +133,50 @@ const initialDocuments = [
 ];
 
 const statusLabels = {
+  uploaded: "Uploaded",
   uploading: "Uploading",
   processing: "Processing",
   ready: "Ready",
   failed: "Failed",
 };
+
+function formatFileSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "0 KB";
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatUploadedAt(value) {
+  if (!value) {
+    return "Just now";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function mapUploadedDocument(document) {
+  return {
+    id: document.id,
+    name: document.originalName,
+    format: document.format,
+    pages: document.pageCount ?? 0,
+    size: formatFileSize(document.fileSize),
+    uploadedAt: formatUploadedAt(document.createdAt),
+    status: document.status ?? "uploaded",
+    preview:
+      "Document uploaded successfully. Text extraction and preview generation will run in a later processing step.",
+  };
+}
 
 const summaryLevels = [
   {
@@ -461,10 +501,19 @@ function WorkspaceSidebarProfile({
 }
 
 export function DocumentsTab() {
+  const { workspaceId } = useParams();
+  const { token } = useAuth();
+
   const [documents, setDocuments] =
     useState(initialDocuments);
 
   const [searchTerm, setSearchTerm] =
+    useState("");
+
+  const [isUploadingDocument, setIsUploadingDocument] =
+    useState(false);
+
+  const [uploadError, setUploadError] =
     useState("");
 
   const [previewDocument, setPreviewDocument] =
@@ -623,6 +672,53 @@ export function DocumentsTab() {
     );
   }
 
+  async function handleDocumentUpload(event) {
+    const selectedFiles = Array.from(
+      event.target.files ?? []
+    );
+
+    event.target.value = "";
+
+    if (
+      selectedFiles.length === 0 ||
+      !workspaceId ||
+      !token
+    ) {
+      return;
+    }
+
+    setIsUploadingDocument(true);
+    setUploadError("");
+
+    try {
+      const uploadedDocuments = [];
+
+      for (const file of selectedFiles) {
+        const response = await uploadDocument(
+          workspaceId,
+          file,
+          token
+        );
+
+        uploadedDocuments.push(
+          mapUploadedDocument(response.document)
+        );
+      }
+
+      setDocuments((current) => [
+        ...uploadedDocuments,
+        ...current,
+      ]);
+    } catch (error) {
+      setUploadError(
+        error.message ||
+          "Unable to upload document."
+      );
+    } finally {
+      setIsUploadingDocument(false);
+    }
+  }
+
   function handleCompare() {
     setComparison((current) => ({
       ...current,
@@ -682,12 +778,40 @@ export function DocumentsTab() {
 
   return (
     <div className="documents-tab">
-      <label className="upload-zone">
-        <input type="file" multiple />
-        <UploadCloud size={30} />
-        <strong>Drop files here or click to upload</strong>
-        <span>PDF, DOCX, TXT, and CSV files are supported.</span>
+      <label
+        className={
+          isUploadingDocument
+            ? "upload-zone is-uploading"
+            : "upload-zone"
+        }
+      >
+        <input
+          type="file"
+          accept=".pdf,.docx,.txt,.csv"
+          multiple
+          disabled={isUploadingDocument}
+          onChange={handleDocumentUpload}
+        />
+        {isUploadingDocument ? (
+          <Loader2 className="spinner" size={30} />
+        ) : (
+          <UploadCloud size={30} />
+        )}
+        <strong>
+          {isUploadingDocument
+            ? "Uploading document"
+            : "Drop files here or click to upload"}
+        </strong>
+        <span>
+          PDF, DOCX, TXT, and CSV files are supported.
+        </span>
       </label>
+
+      {uploadError && (
+        <div className="form-error upload-error">
+          {uploadError}
+        </div>
+      )}
 
       <div className="document-toolbar">
         <label className="search-field">
