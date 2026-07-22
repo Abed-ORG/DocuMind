@@ -79,6 +79,15 @@ export function getWorkspaces(token) {
   });
 }
 
+export function getWorkspace(workspaceId, token) {
+  return request(`/workspaces/${workspaceId}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
 export function createWorkspace(workspaceData, token) {
   return request("/workspaces", {
     method: "POST",
