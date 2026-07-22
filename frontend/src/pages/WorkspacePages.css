@@ -658,6 +658,7 @@
 }
 
 .upload-zone {
+  position: relative;
   min-height: 150px;
   padding: 28px;
   display: grid;
@@ -670,10 +671,49 @@
   text-align: center;
   box-shadow: var(--shadow-sm);
   cursor: pointer;
+  isolation: isolate;
+  overflow: hidden;
   transition:
     border-color 150ms ease,
     background 150ms ease,
-    box-shadow 150ms ease;
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.upload-zone::before,
+.upload-zone::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.upload-zone::before {
+  inset: 10px;
+  z-index: -1;
+  border: 1px solid rgba(79, 70, 229, 0.22);
+  border-radius: calc(var(--radius-card) - 2px);
+  transform: scale(0.96);
+}
+
+.upload-zone::after {
+  inset: -55%;
+  z-index: -2;
+  background: conic-gradient(
+    from 0deg,
+    rgba(79, 70, 229, 0),
+    rgba(79, 70, 229, 0.22),
+    rgba(20, 184, 166, 0.18),
+    rgba(79, 70, 229, 0)
+  );
+}
+
+.upload-zone > * {
+  position: relative;
+  z-index: 1;
 }
 
 .upload-zone input {
@@ -690,8 +730,27 @@
 
 .upload-zone.is-dragging {
   border-color: var(--color-primary);
-  background: #eef2ff;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+  background: #f8fbff;
+  box-shadow:
+    0 0 0 4px rgba(79, 70, 229, 0.12),
+    0 18px 35px rgba(79, 70, 229, 0.16);
+  transform: translateY(-2px) scale(1.01);
+  animation: uploadZonePulse 900ms ease-in-out infinite alternate;
+}
+
+.upload-zone.is-dragging::before {
+  opacity: 1;
+  transform: scale(1);
+  animation: uploadInnerPulse 900ms ease-in-out infinite alternate;
+}
+
+.upload-zone.is-dragging::after {
+  opacity: 1;
+  animation: uploadGlowSweep 1.8s linear infinite;
+}
+
+.upload-zone.is-dragging svg {
+  animation: uploadIconFloat 700ms ease-in-out infinite alternate;
 }
 
 .upload-zone.is-uploading {
@@ -708,6 +767,55 @@
 .upload-zone span {
   color: var(--color-subtle);
   font-size: 0.9rem;
+}
+
+@keyframes uploadZonePulse {
+  from {
+    box-shadow:
+      0 0 0 4px rgba(79, 70, 229, 0.12),
+      0 18px 35px rgba(79, 70, 229, 0.16);
+  }
+
+  to {
+    box-shadow:
+      0 0 0 8px rgba(79, 70, 229, 0.08),
+      0 22px 42px rgba(20, 184, 166, 0.16);
+  }
+}
+
+@keyframes uploadInnerPulse {
+  from {
+    transform: scale(0.98);
+  }
+
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes uploadGlowSweep {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes uploadIconFloat {
+  from {
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    transform: translateY(-5px) scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upload-zone.is-dragging,
+  .upload-zone.is-dragging::before,
+  .upload-zone.is-dragging::after,
+  .upload-zone.is-dragging svg {
+    animation: none;
+  }
 }
 
 .upload-error {
