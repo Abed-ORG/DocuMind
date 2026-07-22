@@ -47,6 +47,20 @@ workspaceSchema.index({
   updatedAt: -1,
 });
 
+workspaceSchema.index(
+  {
+    userId: 1,
+    name: 1,
+  },
+  {
+    unique: true,
+    collation: {
+      locale: "en",
+      strength: 2,
+    },
+  }
+);
+
 const Workspace = mongoose.model(
   "Workspace",
   workspaceSchema

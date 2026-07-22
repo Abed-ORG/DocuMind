@@ -30,6 +30,39 @@ function buildWorkspaceUpdates(body) {
   return updates;
 }
 
+async function workspaceNameExists({
+  userId,
+  name,
+  workspaceId,
+}) {
+  const query = {
+    userId,
+    name,
+  };
+
+  if (workspaceId) {
+    query._id = {
+      $ne: workspaceId,
+    };
+  }
+
+  const existingWorkspace =
+    await Workspace.findOne(query).collation({
+      locale: "en",
+      strength: 2,
+    });
+
+  return Boolean(existingWorkspace);
+}
+
+function sendDuplicateNameResponse(res) {
+  return res.status(409).json({
+    success: false,
+    message:
+      "A workspace with this name already exists.",
+  });
+}
+
 export async function createWorkspace(req, res, next) {
   try {
     const {
@@ -37,6 +70,16 @@ export async function createWorkspace(req, res, next) {
       description,
       color,
     } = req.body;
+
+    const duplicateName =
+      await workspaceNameExists({
+        userId: req.user._id,
+        name,
+      });
+
+    if (duplicateName) {
+      return sendDuplicateNameResponse(res);
+    }
 
     const workspace = await Workspace.create({
       userId: req.user._id,
@@ -51,6 +94,10 @@ export async function createWorkspace(req, res, next) {
       workspace: formatWorkspace(workspace),
     });
   } catch (error) {
+    if (error.code === 11000) {
+      return sendDuplicateNameResponse(res);
+    }
+
     next(error);
   }
 }
@@ -101,6 +148,19 @@ export async function updateWorkspace(req, res, next) {
       req.body
     );
 
+    if (updates.name !== undefined) {
+      const duplicateName =
+        await workspaceNameExists({
+          userId: req.user._id,
+          name: updates.name,
+          workspaceId: req.params.id,
+        });
+
+      if (duplicateName) {
+        return sendDuplicateNameResponse(res);
+      }
+    }
+
     const workspace = await Workspace.findOneAndUpdate(
       {
         _id: req.params.id,
@@ -126,6 +186,10 @@ export async function updateWorkspace(req, res, next) {
       workspace: formatWorkspace(workspace),
     });
   } catch (error) {
+    if (error.code === 11000) {
+      return sendDuplicateNameResponse(res);
+    }
+
     next(error);
   }
 }

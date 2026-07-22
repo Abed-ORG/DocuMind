@@ -25,21 +25,12 @@ import {
 } from "../services/api";
 import "./WorkspacePages.css";
 
-const colorOptions = [
-  "#4F46E5",
-  "#0F766E",
-  "#10B981",
-  "#F59E0B",
-  "#EF4444",
-  "#7C3AED",
-  "#2563EB",
-  "#475569",
-];
+const defaultWorkspaceColor = "#4F46E5";
 
 const emptyWorkspace = {
   name: "",
   description: "",
-  color: colorOptions[0],
+  color: defaultWorkspaceColor,
 };
 
 const activityTimestampFormatter =
@@ -83,7 +74,9 @@ function normalizeWorkspace(workspace) {
     id: workspace.id ?? workspace._id,
     name: workspace.name,
     description: workspace.description ?? "",
-    color: workspace.color ?? colorOptions[0],
+    color:
+      workspace.color ??
+      defaultWorkspaceColor,
     documents: getStatValue(
       workspace.documentCount ??
         workspace.documents
@@ -197,28 +190,20 @@ function WorkspaceModal({
           </div>
 
           <div className="color-picker-group">
-            <span>Color</span>
+            <label htmlFor="workspace-color">Color</label>
             <div className="color-picker">
-              {colorOptions.map((color) => (
-                <button
-                  key={color}
-                  className={
-                    formData.color === color
-                      ? "color-dot is-selected"
-                      : "color-dot"
-                  }
-                  type="button"
-                  style={{ background: color }}
-                  disabled={isSubmitting}
-                  aria-label={`Choose ${color}`}
-                  onClick={() =>
-                    setFormData((current) => ({
-                      ...current,
-                      color,
-                    }))
-                  }
-                />
-              ))}
+              <input
+                id="workspace-color"
+                className="color-picker-input"
+                name="color"
+                type="color"
+                value={formData.color}
+                onChange={handleChange}
+                disabled={isSubmitting}
+              />
+              <span className="color-value">
+                {formData.color.toUpperCase()}
+              </span>
             </div>
           </div>
 
