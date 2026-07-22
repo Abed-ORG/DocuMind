@@ -140,6 +140,16 @@ const statusLabels = {
   failed: "Failed",
 };
 
+const supportedUploadExtensions = new Set([
+  "pdf",
+  "docx",
+  "txt",
+  "csv",
+]);
+
+const maxUploadSizeBytes =
+  100 * 1024 * 1024;
+
 function formatFileSize(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
     return "0 KB";
@@ -176,6 +186,48 @@ function mapUploadedDocument(document) {
     preview:
       "Document uploaded successfully. Text extraction and preview generation will run in a later processing step.",
   };
+}
+
+function createUploadId(file) {
+  return [
+    file.name,
+    file.size,
+    file.lastModified,
+    Math.random().toString(36).slice(2),
+  ].join("-");
+}
+
+function getFileExtension(file) {
+  return file.name
+    .split(".")
+    .pop()
+    ?.toLowerCase();
+}
+
+function validateUploadFile(file) {
+  const extension = getFileExtension(file);
+
+  if (!supportedUploadExtensions.has(extension)) {
+    return `${file.name} is not supported. Use PDF, DOCX, TXT, or CSV.`;
+  }
+
+  if (file.size > maxUploadSizeBytes) {
+    return `${file.name} is larger than 100MB.`;
+  }
+
+  return "";
+}
+
+function getUploadStatusLabel(status) {
+  if (status === "complete") {
+    return "Uploaded";
+  }
+
+  if (status === "queued") {
+    return "Queued";
+  }
+
+  return "Uploading";
 }
 
 const summaryLevels = [
@@ -513,6 +565,12 @@ export function DocumentsTab() {
   const [isUploadingDocument, setIsUploadingDocument] =
     useState(false);
 
+  const [isDraggingDocument, setIsDraggingDocument] =
+    useState(false);
+
+  const [uploadQueue, setUploadQueue] =
+    useState([]);
+
   const [uploadError, setUploadError] =
     useState("");
 
@@ -672,51 +730,187 @@ export function DocumentsTab() {
     );
   }
 
-  async function handleDocumentUpload(event) {
-    const selectedFiles = Array.from(
-      event.target.files ?? []
+  function updateUploadQueueItem(id, updates) {
+    setUploadQueue((current) =>
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              ...updates,
+            }
+          : item
+      )
     );
+  }
 
-    event.target.value = "";
+  function clearUploadMessages() {
+    setUploadQueue([]);
+    setUploadError("");
+  }
 
+  function dismissUploadMessage(id) {
+    setUploadQueue((current) => {
+      const nextQueue = current.filter(
+        (item) => item.id !== id
+      );
+
+      if (
+        nextQueue.every(
+          (item) => item.status !== "failed"
+        )
+      ) {
+        setUploadError("");
+      }
+
+      return nextQueue;
+    });
+  }
+
+  async function uploadFiles(files) {
     if (
-      selectedFiles.length === 0 ||
+      files.length === 0 ||
       !workspaceId ||
       !token
     ) {
       return;
     }
 
+    const uploadItems = files.map((file) => {
+      const error = validateUploadFile(file);
+
+      return {
+        id: createUploadId(file),
+        file,
+        name: file.name,
+        size: formatFileSize(file.size),
+        error,
+      };
+    });
+
+    const initialQueue = uploadItems.map((item) => ({
+      id: item.id,
+      name: item.name,
+      size: item.size,
+      progress: 0,
+      status: item.error ? "failed" : "queued",
+      error: item.error,
+    }));
+
+    const uploadMessages = uploadItems
+      .filter((item) => item.error)
+      .map((item) => item.error);
+
+    setUploadQueue(initialQueue);
+    setUploadError(uploadMessages.join(" "));
+
+    const validUploadItems = uploadItems.filter(
+      (item) => !item.error
+    );
+
+    if (validUploadItems.length === 0) {
+      return;
+    }
+
     setIsUploadingDocument(true);
-    setUploadError("");
 
-    try {
-      const uploadedDocuments = [];
+    for (const item of validUploadItems) {
+      updateUploadQueueItem(item.id, {
+        status: "uploading",
+        progress: 0,
+      });
 
-      for (const file of selectedFiles) {
+      try {
         const response = await uploadDocument(
           workspaceId,
-          file,
-          token
+          item.file,
+          token,
+          {
+            onProgress: (progress) => {
+              updateUploadQueueItem(item.id, {
+                progress,
+              });
+            },
+          }
         );
 
-        uploadedDocuments.push(
-          mapUploadedDocument(response.document)
-        );
+        updateUploadQueueItem(item.id, {
+          status: "complete",
+          progress: 100,
+        });
+
+        setDocuments((current) => [
+          mapUploadedDocument(response.document),
+          ...current,
+        ]);
+      } catch (error) {
+        const message =
+          error.message ||
+          "Unable to upload document.";
+        const uploadMessage = `${item.name}: ${message}`;
+
+        uploadMessages.push(uploadMessage);
+
+        updateUploadQueueItem(item.id, {
+          status: "failed",
+          error: uploadMessage,
+        });
       }
-
-      setDocuments((current) => [
-        ...uploadedDocuments,
-        ...current,
-      ]);
-    } catch (error) {
-      setUploadError(
-        error.message ||
-          "Unable to upload document."
-      );
-    } finally {
-      setIsUploadingDocument(false);
     }
+
+    setUploadError(uploadMessages.join(" "));
+    setIsUploadingDocument(false);
+  }
+
+  function handleDocumentUpload(event) {
+    const selectedFiles = Array.from(
+      event.target.files ?? []
+    );
+
+    event.target.value = "";
+    uploadFiles(selectedFiles);
+  }
+
+  function handleUploadDragEnter(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!isUploadingDocument) {
+      setIsDraggingDocument(true);
+    }
+  }
+
+  function handleUploadDragOver(event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function handleUploadDragLeave(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (
+      event.relatedTarget &&
+      event.currentTarget.contains(event.relatedTarget)
+    ) {
+      return;
+    }
+
+    setIsDraggingDocument(false);
+  }
+
+  function handleUploadDrop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    setIsDraggingDocument(false);
+
+    if (isUploadingDocument) {
+      return;
+    }
+
+    uploadFiles(
+      Array.from(event.dataTransfer.files ?? [])
+    );
   }
 
   function handleCompare() {
@@ -776,14 +970,22 @@ export function DocumentsTab() {
     URL.revokeObjectURL(url);
   }
 
+  const uploadZoneClassName = [
+    "upload-zone",
+    isUploadingDocument ? "is-uploading" : "",
+    isDraggingDocument ? "is-dragging" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <div className="documents-tab">
       <label
-        className={
-          isUploadingDocument
-            ? "upload-zone is-uploading"
-            : "upload-zone"
-        }
+        className={uploadZoneClassName}
+        onDragEnter={handleUploadDragEnter}
+        onDragOver={handleUploadDragOver}
+        onDragLeave={handleUploadDragLeave}
+        onDrop={handleUploadDrop}
       >
         <input
           type="file"
@@ -810,6 +1012,68 @@ export function DocumentsTab() {
       {uploadError && (
         <div className="form-error upload-error">
           {uploadError}
+        </div>
+      )}
+
+      {uploadQueue.length > 0 && (
+        <div className="upload-progress-panel" aria-live="polite">
+          <div className="upload-progress-header">
+            <strong>Upload messages</strong>
+            <button
+              type="button"
+              onClick={clearUploadMessages}
+            >
+              Clear all
+            </button>
+          </div>
+
+          <div className="upload-progress-list">
+            {uploadQueue.map((item) => (
+              <div
+                key={item.id}
+                className={`upload-progress-item is-${item.status}`}
+              >
+                <div className="upload-progress-copy">
+                  <strong>{item.name}</strong>
+                  <span>
+                    {item.status === "failed"
+                      ? item.error
+                      : `${item.size} - ${getUploadStatusLabel(
+                          item.status
+                        )}`}
+                  </span>
+                </div>
+
+                <div className="upload-progress-actions">
+                  <strong className="upload-progress-value">
+                    {item.status === "failed"
+                      ? "Failed"
+                      : `${item.progress}%`}
+                  </strong>
+
+                  <button
+                    className="upload-dismiss-button"
+                    type="button"
+                    aria-label={`Dismiss ${item.name} upload message`}
+                    title="Dismiss upload message"
+                    onClick={() =>
+                      dismissUploadMessage(item.id)
+                    }
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="upload-progress-track">
+                  <span
+                    style={{
+                      width: `${item.progress}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

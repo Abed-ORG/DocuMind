@@ -130,19 +130,80 @@ export function deleteWorkspace(workspaceId, token) {
 export function uploadDocument(
   workspaceId,
   file,
-  token
+  token,
+  {
+    onProgress,
+  } = {}
 ) {
   const formData = new FormData();
   formData.append("file", file);
 
-  return request(
-    `/workspaces/${workspaceId}/documents`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData,
-    }
-  );
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.open(
+      "POST",
+      `${API_BASE_URL}/workspaces/${workspaceId}/documents`
+    );
+    xhr.setRequestHeader(
+      "Authorization",
+      `Bearer ${token}`
+    );
+
+    xhr.upload.addEventListener(
+      "progress",
+      (event) => {
+        if (!event.lengthComputable) {
+          return;
+        }
+
+        onProgress?.(
+          Math.round(
+            (event.loaded / event.total) * 100
+          )
+        );
+      }
+    );
+
+    xhr.addEventListener("load", () => {
+      let data;
+
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch {
+        data = {
+          success: false,
+          message:
+            "The server returned an invalid response.",
+        };
+      }
+
+      if (xhr.status < 200 || xhr.status >= 300) {
+        const error = new Error(
+          data.message || "Request failed."
+        );
+
+        error.status = xhr.status;
+        error.errors = data.errors || [];
+
+        reject(error);
+        return;
+      }
+
+      onProgress?.(100);
+      resolve(data);
+    });
+
+    xhr.addEventListener("error", () => {
+      reject(
+        new Error("Unable to upload document.")
+      );
+    });
+
+    xhr.addEventListener("abort", () => {
+      reject(new Error("Document upload was canceled."));
+    });
+
+    xhr.send(formData);
+  });
 }

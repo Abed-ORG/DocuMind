@@ -669,6 +669,11 @@
   background: #ffffff;
   text-align: center;
   box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .upload-zone input {
@@ -683,8 +688,15 @@
   color: var(--color-primary);
 }
 
+.upload-zone.is-dragging {
+  border-color: var(--color-primary);
+  background: #eef2ff;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
 .upload-zone.is-uploading {
   pointer-events: none;
+  cursor: progress;
   opacity: 0.78;
 }
 
@@ -700,6 +712,143 @@
 
 .upload-error {
   margin-top: 12px;
+  padding: 11px 12px;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-button);
+  color: #991b1b;
+  background: #fef2f2;
+  font-size: 0.88rem;
+  font-weight: 720;
+}
+
+.upload-progress-panel {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.upload-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.upload-progress-header strong {
+  color: var(--color-text);
+  font-size: 0.92rem;
+}
+
+.upload-progress-header button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  color: var(--color-muted);
+  background: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.upload-progress-header button:hover {
+  color: var(--color-text);
+  background: var(--color-surface-muted);
+}
+
+.upload-progress-list {
+  display: grid;
+  gap: 10px;
+}
+
+.upload-progress-item {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: #ffffff;
+  box-shadow: var(--shadow-sm);
+}
+
+.upload-progress-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.upload-progress-copy strong,
+.upload-progress-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-progress-copy strong {
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+
+.upload-progress-copy span {
+  color: var(--color-subtle);
+  font-size: 0.82rem;
+}
+
+.upload-progress-value {
+  color: var(--color-muted);
+  font-size: 0.84rem;
+}
+
+.upload-progress-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-dismiss-button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  color: var(--color-subtle);
+  background: #ffffff;
+}
+
+.upload-dismiss-button:hover {
+  color: var(--color-text);
+  background: var(--color-surface-muted);
+}
+
+.upload-progress-track {
+  grid-column: 1 / -1;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eef2f7;
+}
+
+.upload-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-primary);
+  transition: width 160ms ease;
+}
+
+.upload-progress-item.is-complete .upload-progress-track span {
+  background: var(--color-success);
+}
+
+.upload-progress-item.is-failed {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.upload-progress-item.is-failed .upload-progress-value,
+.upload-progress-item.is-failed .upload-progress-copy span {
+  color: #991b1b;
 }
 
 .document-toolbar {
