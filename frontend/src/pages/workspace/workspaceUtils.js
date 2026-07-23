@@ -85,6 +85,87 @@ export function validateUploadFile(file) {
   return "";
 }
 
+export function normalizeDocumentName(name) {
+  return name.trim().toLowerCase();
+}
+
+export function documentNameExists(
+  name,
+  existingNames
+) {
+  const normalizedName =
+    normalizeDocumentName(name);
+
+  return existingNames.some(
+    (existingName) =>
+      normalizeDocumentName(existingName) ===
+      normalizedName
+  );
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function splitDocumentName(name) {
+  const trimmedName = name.trim();
+  const extensionStartIndex =
+    trimmedName.lastIndexOf(".");
+
+  if (extensionStartIndex <= 0) {
+    return {
+      baseName: trimmedName,
+      extension: "",
+    };
+  }
+
+  return {
+    baseName: trimmedName.slice(
+      0,
+      extensionStartIndex
+    ),
+    extension: trimmedName.slice(extensionStartIndex),
+  };
+}
+
+export function getDuplicateDocumentName(
+  name,
+  existingNames
+) {
+  const {
+    baseName,
+    extension,
+  } = splitDocumentName(name);
+
+  const duplicatePattern = new RegExp(
+    `^${escapeRegExp(baseName)} copy(\\d+)${escapeRegExp(
+      extension
+    )}$`,
+    "i"
+  );
+
+  const highestCopyNumber = existingNames.reduce(
+    (highest, existingName) => {
+      const match = existingName.match(
+        duplicatePattern
+      );
+
+      if (!match) {
+        return highest;
+      }
+
+      const copyNumber = Number(match[1]);
+
+      return Number.isFinite(copyNumber)
+        ? Math.max(highest, copyNumber)
+        : highest;
+    },
+    0
+  );
+
+  return `${baseName} copy${highestCopyNumber + 1}${extension}`;
+}
+
 export function getUploadStatusLabel(status) {
   if (status === "complete") {
     return "Uploaded";

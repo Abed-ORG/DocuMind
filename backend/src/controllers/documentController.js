@@ -43,6 +43,15 @@ function getStoredFilePath(filename) {
   );
 }
 
+function getOriginalName(req) {
+  const requestedName =
+    typeof req.body?.originalName === "string"
+      ? req.body.originalName.trim()
+      : "";
+
+  return requestedName || req.file.originalname;
+}
+
 async function removeUploadedFile(filePath) {
   try {
     await fs.unlink(filePath);
@@ -90,10 +99,22 @@ export async function createDocument(req, res, next) {
       });
     }
 
+    const originalName = getOriginalName(req);
+
+    if (originalName.length > 255) {
+      await removeUploadedFile(req.file.path);
+
+      return res.status(400).json({
+        success: false,
+        message:
+          "Original filename cannot exceed 255 characters.",
+      });
+    }
+
     const document = await Document.create({
       workspaceId: workspace._id,
       filename: req.file.filename,
-      originalName: req.file.originalname,
+      originalName,
       format,
       pageCount: 0,
       fileSize: req.file.size,

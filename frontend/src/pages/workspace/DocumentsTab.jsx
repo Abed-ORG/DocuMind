@@ -21,7 +21,9 @@ import {
 } from "./workspaceData";
 import {
   createUploadId,
+  documentNameExists,
   formatFileSize,
+  getDuplicateDocumentName,
   mapUploadedDocument,
   validateUploadFile,
 } from "./workspaceUtils";
@@ -297,26 +299,69 @@ function DocumentsTab() {
       return;
     }
 
+    const plannedDocumentNames = documents.map(
+      (document) => document.name
+    );
+
     const uploadItems = files.map((file) => {
       const error = validateUploadFile(file);
+      let displayName = file.name;
+      let isSkipped = false;
+      let message = error;
+
+      if (!error) {
+        const isDuplicate = documentNameExists(
+          file.name,
+          plannedDocumentNames
+        );
+
+        if (isDuplicate) {
+          const duplicateName =
+            getDuplicateDocumentName(
+              file.name,
+              plannedDocumentNames
+            );
+
+          const shouldUploadDuplicate =
+            window.confirm(
+              `${file.name} already exists in this workspace.\n\nSelect OK to add it as "${duplicateName}", or Cancel to skip this file.`
+            );
+
+          if (shouldUploadDuplicate) {
+            displayName = duplicateName;
+            plannedDocumentNames.push(displayName);
+          } else {
+            isSkipped = true;
+            message = `${file.name} was skipped because it already exists.`;
+          }
+        } else {
+          plannedDocumentNames.push(displayName);
+        }
+      }
 
       return {
         id: createUploadId(file),
         file,
-        name: file.name,
+        name: displayName,
         size: formatFileSize(file.size),
-        error,
+        error: message,
+        isSkipped,
       };
     });
 
     const now = Date.now();
+    setUploadTimerTick(now);
 
     const initialQueue = uploadItems.map((item) => ({
       id: item.id,
       name: item.name,
       size: item.size,
       progress: 0,
-      status: item.error ? "failed" : "queued",
+      status: item.error
+        ? item.isSkipped
+          ? "skipped"
+          : "failed"
+        : "queued",
       error: item.error,
       expiresAt: item.error
         ? now + uploadNotificationDurationMs
@@ -329,7 +374,7 @@ function DocumentsTab() {
     ]);
 
     const validUploadItems = uploadItems.filter(
-      (item) => !item.error
+      (item) => !item.error && !item.isSkipped
     );
 
     if (validUploadItems.length === 0) {
@@ -350,6 +395,7 @@ function DocumentsTab() {
           item.file,
           token,
           {
+            documentName: item.name,
             onProgress: (progress) => {
               updateUploadQueueItem(item.id, {
                 progress,
@@ -358,11 +404,14 @@ function DocumentsTab() {
           }
         );
 
+        const finishedAt = Date.now();
+        setUploadTimerTick(finishedAt);
+
         updateUploadQueueItem(item.id, {
           status: "complete",
           progress: 100,
           expiresAt:
-            Date.now() + uploadNotificationDurationMs,
+            finishedAt + uploadNotificationDurationMs,
         });
 
         setDocuments((current) => [
@@ -375,11 +424,14 @@ function DocumentsTab() {
           "Unable to upload document.";
         const uploadMessage = `${item.name}: ${message}`;
 
+        const failedAt = Date.now();
+        setUploadTimerTick(failedAt);
+
         updateUploadQueueItem(item.id, {
           status: "failed",
           error: uploadMessage,
           expiresAt:
-            Date.now() + uploadNotificationDurationMs,
+            failedAt + uploadNotificationDurationMs,
         });
       }
     }

@@ -85,7 +85,8 @@ function DocumentUpload({
                 <div className="upload-progress-copy">
                   <strong>{item.name}</strong>
                   <span>
-                    {item.status === "failed"
+                    {item.status === "failed" ||
+                    item.status === "skipped"
                       ? item.error
                       : `${item.size} - ${getUploadStatusLabel(
                           item.status
@@ -97,7 +98,9 @@ function DocumentUpload({
                   <strong className="upload-progress-value">
                     {item.status === "failed"
                       ? "Failed"
-                      : `${item.progress}%`}
+                      : item.status === "skipped"
+                        ? "Skipped"
+                        : `${item.progress}%`}
                   </strong>
 
                   {typeof item.secondsRemaining === "number" && (

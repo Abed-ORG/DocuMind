@@ -995,9 +995,23 @@
   background: #fef2f2;
 }
 
+.upload-progress-item.is-skipped {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
 .upload-progress-item.is-failed .upload-progress-value,
 .upload-progress-item.is-failed .upload-progress-copy span {
   color: #991b1b;
+}
+
+.upload-progress-item.is-skipped .upload-progress-value,
+.upload-progress-item.is-skipped .upload-progress-copy span {
+  color: #9a3412;
+}
+
+.upload-progress-item.is-skipped .upload-progress-track span {
+  background: #f97316;
 }
 
 .document-toolbar {

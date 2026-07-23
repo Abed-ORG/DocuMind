@@ -132,11 +132,16 @@ export function uploadDocument(
   file,
   token,
   {
+    documentName,
     onProgress,
   } = {}
 ) {
   const formData = new FormData();
   formData.append("file", file);
+
+  if (documentName) {
+    formData.append("originalName", documentName);
+  }
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
