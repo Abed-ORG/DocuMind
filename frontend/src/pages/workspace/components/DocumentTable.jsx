@@ -3,6 +3,7 @@ import {
   GitCompareArrows,
   Search,
   Trash2,
+  UploadCloud,
 } from "lucide-react";
 
 import documindHero from "../../../assets/documind-hero.png";
@@ -15,6 +16,7 @@ function DocumentTable({
   onSearchTermChange,
   onOpenSummary,
   onOpenPreview,
+  onOpenUploadDialog,
   onRenameDocument,
   onOpenExtraction,
   onDeleteDocument,
@@ -34,10 +36,21 @@ function DocumentTable({
           />
         </label>
 
-        <button className="secondary-action" type="button">
-          <GitCompareArrows size={17} />
-          Compare
-        </button>
+        <div className="document-toolbar-actions">
+          <button
+            className="primary-action"
+            type="button"
+            onClick={onOpenUploadDialog}
+          >
+            <UploadCloud size={17} />
+            Add documents
+          </button>
+
+          <button className="secondary-action" type="button">
+            <GitCompareArrows size={17} />
+            Compare
+          </button>
+        </div>
       </div>
 
       {filteredDocuments.length === 0 ? (

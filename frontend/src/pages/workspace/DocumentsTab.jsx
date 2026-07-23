@@ -10,10 +10,10 @@ import { useAuth } from "../../context/AuthContext";
 import { uploadDocument } from "../../services/api";
 import CrossDocumentComparison from "./components/CrossDocumentComparison";
 import DocumentTable from "./components/DocumentTable";
-import DocumentUpload from "./components/DocumentUpload";
 import PreviewPanel from "./components/PreviewPanel";
 import StructuredExtraction from "./components/StructuredExtraction";
 import SummaryPanel from "./components/SummaryPanel";
+import UploadDocumentsDialog from "./components/UploadDocumentsDialog";
 import {
   extractionRows,
   initialDocuments,
@@ -44,6 +44,9 @@ function DocumentsTab() {
     useState(false);
 
   const [isDraggingDocument, setIsDraggingDocument] =
+    useState(false);
+
+  const [isUploadDialogOpen, setIsUploadDialogOpen] =
     useState(false);
 
   const [uploadQueue, setUploadQueue] =
@@ -491,6 +494,11 @@ function DocumentsTab() {
     );
   }
 
+  function closeUploadDialog() {
+    setIsDraggingDocument(false);
+    setIsUploadDialogOpen(false);
+  }
+
   function handleCompare() {
     setComparison((current) => ({
       ...current,
@@ -550,30 +558,34 @@ function DocumentsTab() {
 
   return (
     <div className="documents-tab">
-      <DocumentUpload
-        isUploadingDocument={isUploadingDocument}
-        isDraggingDocument={isDraggingDocument}
-        uploadError={uploadError}
-        uploadQueue={visibleUploadQueue}
-        onFileChange={handleDocumentUpload}
-        onDragEnter={handleUploadDragEnter}
-        onDragOver={handleUploadDragOver}
-        onDragLeave={handleUploadDragLeave}
-        onDrop={handleUploadDrop}
-        onClearMessages={clearUploadMessages}
-        onDismissMessage={dismissUploadMessage}
-      />
-
       <DocumentTable
         filteredDocuments={filteredDocuments}
         searchTerm={searchTerm}
         onSearchTermChange={setSearchTerm}
         onOpenSummary={openSummary}
         onOpenPreview={setPreviewDocument}
+        onOpenUploadDialog={() => setIsUploadDialogOpen(true)}
         onRenameDocument={renameDocument}
         onOpenExtraction={openExtraction}
         onDeleteDocument={deleteDocument}
       />
+
+      {isUploadDialogOpen && (
+        <UploadDocumentsDialog
+          isUploadingDocument={isUploadingDocument}
+          isDraggingDocument={isDraggingDocument}
+          uploadError={uploadError}
+          uploadQueue={visibleUploadQueue}
+          onFileChange={handleDocumentUpload}
+          onDragEnter={handleUploadDragEnter}
+          onDragOver={handleUploadDragOver}
+          onDragLeave={handleUploadDragLeave}
+          onDrop={handleUploadDrop}
+          onClearMessages={clearUploadMessages}
+          onDismissMessage={dismissUploadMessage}
+          onClose={closeUploadDialog}
+        />
+      )}
 
       <SummaryPanel
         summaryState={summaryState}
