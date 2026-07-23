@@ -4,12 +4,16 @@ import {
 } from "react";
 import {
   NavLink,
+  Link,
   Outlet,
   useLocation,
   useNavigate,
   useParams,
 } from "react-router";
-import { Menu } from "lucide-react";
+import {
+  FileSearch,
+  Menu,
+} from "lucide-react";
 
 import { useAuth } from "../../context/AuthContext";
 import { getWorkspace as getWorkspaceRequest } from "../../services/api";
@@ -139,9 +143,18 @@ function WorkspacePage() {
             : "workspace-sidebar"
         }
       >
+        <Link className="workspace-sidebar-brand" to="/">
+          <span className="workspace-sidebar-brand-mark">
+            <FileSearch size={20} />
+          </span>
+          <span>DocuMind</span>
+        </Link>
+
         <div className="sidebar-workspace-title">
           <span style={{ background: workspaceColor }} />
-          <strong>{workspaceName}</strong>
+          <Link to="/dashboard">
+            {workspaceName}
+          </Link>
         </div>
 
         <nav className="workspace-nav" aria-label="Workspace">

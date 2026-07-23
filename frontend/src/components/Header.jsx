@@ -38,6 +38,10 @@ function Header() {
   const isWorkspaceRoute =
     location.pathname.startsWith("/workspace/");
 
+  if (isWorkspaceRoute) {
+    return null;
+  }
+
   function handleLogout() {
     logout();
     navigate("/", {

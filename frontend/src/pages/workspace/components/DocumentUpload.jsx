@@ -100,6 +100,12 @@ function DocumentUpload({
                       : `${item.progress}%`}
                   </strong>
 
+                  {typeof item.secondsRemaining === "number" && (
+                    <span className="upload-clear-timer">
+                      Clears in {item.secondsRemaining}s
+                    </span>
+                  )}
+
                   <button
                     className="upload-dismiss-button"
                     type="button"

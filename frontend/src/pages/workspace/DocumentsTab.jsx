@@ -26,6 +26,8 @@ import {
   validateUploadFile,
 } from "./workspaceUtils";
 
+const uploadNotificationDurationMs = 5000;
+
 function DocumentsTab() {
   const { workspaceId } = useParams();
   const { token } = useAuth();
@@ -45,8 +47,8 @@ function DocumentsTab() {
   const [uploadQueue, setUploadQueue] =
     useState([]);
 
-  const [uploadError, setUploadError] =
-    useState("");
+  const [uploadTimerTick, setUploadTimerTick] =
+    useState(() => Date.now());
 
   const [previewDocument, setPreviewDocument] =
     useState(null);
@@ -106,6 +108,41 @@ function DocumentsTab() {
     return rows;
   }, [sortConfig]);
 
+  const uploadError = useMemo(
+    () =>
+      uploadQueue
+        .filter((item) => item.status === "failed")
+        .map((item) => item.error)
+        .join(" "),
+    [uploadQueue]
+  );
+
+  const visibleUploadQueue = useMemo(
+    () =>
+      uploadQueue.map((item) => {
+        if (!item.expiresAt) {
+          return item;
+        }
+
+        const remainingMs = Math.max(
+          0,
+          item.expiresAt - uploadTimerTick
+        );
+
+        return {
+          ...item,
+          secondsRemaining: Math.ceil(
+            remainingMs / 1000
+          ),
+        };
+      }),
+    [uploadQueue, uploadTimerTick]
+  );
+
+  const hasExpiringUploadMessages = uploadQueue.some(
+    (item) => item.expiresAt
+  );
+
   useEffect(() => {
     if (!summaryState?.isLoading) {
       return undefined;
@@ -130,6 +167,28 @@ function DocumentsTab() {
     summaryState?.level,
     summaryState?.isLoading,
   ]);
+
+  useEffect(() => {
+    if (
+      !hasExpiringUploadMessages
+    ) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+
+      setUploadTimerTick(now);
+      setUploadQueue((current) =>
+        current.filter(
+          (item) =>
+            !item.expiresAt || item.expiresAt > now
+        )
+      );
+    }, 250);
+
+    return () => window.clearInterval(timer);
+  }, [hasExpiringUploadMessages]);
 
   function openSummary(document) {
     const cached = document.id === "market-outlook";
@@ -219,25 +278,14 @@ function DocumentsTab() {
 
   function clearUploadMessages() {
     setUploadQueue([]);
-    setUploadError("");
   }
 
   function dismissUploadMessage(id) {
-    setUploadQueue((current) => {
-      const nextQueue = current.filter(
+    setUploadQueue((current) =>
+      current.filter(
         (item) => item.id !== id
-      );
-
-      if (
-        nextQueue.every(
-          (item) => item.status !== "failed"
-        )
-      ) {
-        setUploadError("");
-      }
-
-      return nextQueue;
-    });
+      )
+    );
   }
 
   async function uploadFiles(files) {
@@ -261,6 +309,8 @@ function DocumentsTab() {
       };
     });
 
+    const now = Date.now();
+
     const initialQueue = uploadItems.map((item) => ({
       id: item.id,
       name: item.name,
@@ -268,14 +318,15 @@ function DocumentsTab() {
       progress: 0,
       status: item.error ? "failed" : "queued",
       error: item.error,
+      expiresAt: item.error
+        ? now + uploadNotificationDurationMs
+        : null,
     }));
 
-    const uploadMessages = uploadItems
-      .filter((item) => item.error)
-      .map((item) => item.error);
-
-    setUploadQueue(initialQueue);
-    setUploadError(uploadMessages.join(" "));
+    setUploadQueue((current) => [
+      ...current,
+      ...initialQueue,
+    ]);
 
     const validUploadItems = uploadItems.filter(
       (item) => !item.error
@@ -310,6 +361,8 @@ function DocumentsTab() {
         updateUploadQueueItem(item.id, {
           status: "complete",
           progress: 100,
+          expiresAt:
+            Date.now() + uploadNotificationDurationMs,
         });
 
         setDocuments((current) => [
@@ -322,16 +375,15 @@ function DocumentsTab() {
           "Unable to upload document.";
         const uploadMessage = `${item.name}: ${message}`;
 
-        uploadMessages.push(uploadMessage);
-
         updateUploadQueueItem(item.id, {
           status: "failed",
           error: uploadMessage,
+          expiresAt:
+            Date.now() + uploadNotificationDurationMs,
         });
       }
     }
 
-    setUploadError(uploadMessages.join(" "));
     setIsUploadingDocument(false);
   }
 
@@ -450,7 +502,7 @@ function DocumentsTab() {
         isUploadingDocument={isUploadingDocument}
         isDraggingDocument={isDraggingDocument}
         uploadError={uploadError}
-        uploadQueue={uploadQueue}
+        uploadQueue={visibleUploadQueue}
         onFileChange={handleDocumentUpload}
         onDragEnter={handleUploadDragEnter}
         onDragOver={handleUploadDragOver}
