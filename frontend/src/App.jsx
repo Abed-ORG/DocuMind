@@ -7,15 +7,17 @@ import {
 import MainLayout from "./layouts/MainLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
 
-import HomePage from "./pages/HomePage";
-import LoginPage from "./pages/LoginPage";
-import RegisterPage from "./pages/RegisterPage";
-import WorkspacesPage from "./pages/WorkspacesPage";
+import HomePage from "./pages/home";
+import {
+  LoginPage,
+  RegisterPage,
+} from "./pages/auth";
+import WorkspacesPage from "./pages/workspaces";
 import WorkspacePage, {
   AnalyticsTab,
   ChatTab,
   DocumentsTab,
-} from "./pages/WorkspacePage";
+} from "./pages/workspace";
 import NotFoundPage from "./pages/NotFoundPage";
 
 function App() {

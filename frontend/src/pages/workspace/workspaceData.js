@@ -1,0 +1,219 @@
+import {
+  BarChart3,
+  FileText,
+  MessageSquareText,
+} from "lucide-react";
+
+export const defaultWorkspaceColor = "#4F46E5";
+
+export const navItems = [
+  {
+    key: "documents",
+    label: "Documents",
+    icon: FileText,
+  },
+  {
+    key: "chat",
+    label: "Chat",
+    icon: MessageSquareText,
+  },
+  {
+    key: "analytics",
+    label: "Analytics",
+    icon: BarChart3,
+  },
+];
+
+export const initialDocuments = [
+  {
+    id: "market-outlook",
+    name: "2026 Market Outlook.pdf",
+    format: "PDF",
+    pages: 42,
+    size: "8.4 MB",
+    uploadedAt: "Jul 17, 2026",
+    status: "ready",
+    preview:
+      "The report describes software buying cycles, budget expansion in AI search, and new compliance expectations for source-grounded answers.\n\n--- Page 2 ---\nEnterprise buyers increasingly require retrieval transparency and an audit trail for AI-generated answers.\n\n--- Page 3 ---\nNorth America remains the largest segment, while regulated industries show the fastest growth in document intelligence tooling.",
+  },
+  {
+    id: "vendor-matrix",
+    name: "Vendor Capability Matrix.xlsx",
+    format: "CSV",
+    pages: 12,
+    size: "1.7 MB",
+    uploadedAt: "Jul 16, 2026",
+    status: "processing",
+    preview:
+      "Capability categories include ingestion, OCR accuracy, citation quality, structured extraction, and admin controls.\n\n--- Page 2 ---\nVendors with traceable answer provenance received higher evaluation scores.",
+  },
+  {
+    id: "interview-notes",
+    name: "Customer Interview Notes.docx",
+    format: "DOCX",
+    pages: 19,
+    size: "2.2 MB",
+    uploadedAt: "Jul 13, 2026",
+    status: "ready",
+    preview:
+      "Interviewees emphasized trust, speed, and the ability to compare related documents without exporting files.\n\n--- Page 2 ---\nRepeated themes: faster evidence review, source highlighting, and easy summaries for executives.",
+  },
+  {
+    id: "legacy-policy",
+    name: "Legacy Policy Dump.txt",
+    format: "TXT",
+    pages: 86,
+    size: "4.9 MB",
+    uploadedAt: "Jul 11, 2026",
+    status: "failed",
+    preview:
+      "Import failed before text extraction completed. Retry with a UTF-8 encoded text file.",
+  },
+  {
+    id: "quarterly-model",
+    name: "Quarterly Revenue Model.csv",
+    format: "CSV",
+    pages: 7,
+    size: "940 KB",
+    uploadedAt: "Jul 10, 2026",
+    status: "uploading",
+    preview:
+      "Rows include quarter, region, revenue, gross margin, and customer cohort.",
+  },
+];
+
+export const statusLabels = {
+  uploaded: "Uploaded",
+  uploading: "Uploading",
+  processing: "Processing",
+  ready: "Ready",
+  failed: "Failed",
+};
+
+export const supportedUploadExtensions = new Set([
+  "pdf",
+  "docx",
+  "txt",
+  "csv",
+]);
+
+export const maxUploadSizeBytes =
+  100 * 1024 * 1024;
+
+export const summaryLevels = [
+  {
+    key: "oneLiner",
+    label: "One-liner",
+  },
+  {
+    key: "executive",
+    label: "Executive",
+  },
+  {
+    key: "detailed",
+    label: "Detailed",
+  },
+];
+
+export const summaryCopy = {
+  oneLiner:
+    "The document shows rising demand for cited AI answers in regulated document workflows.",
+  executive:
+    "The document argues that document intelligence tools are moving from simple search toward source-grounded AI workspaces. The strongest demand comes from teams that need answers, summaries, comparisons, and structured extraction while preserving citation traceability.",
+  detailed:
+    "The document frames document intelligence as an operational layer for high-volume review work. It highlights a shift from unmanaged file search to workspace-based analysis, then connects that shift to buyer requirements around auditability, citations, extraction quality, and cross-document comparison. The strongest adoption signals come from legal, finance, policy, and research teams that need evidence they can inspect.",
+};
+
+export const extractionRows = [
+  {
+    field: "Renewal date",
+    value: "September 30, 2026",
+    type: "Date",
+    source: "Market Outlook, p.4",
+  },
+  {
+    field: "Projected spend",
+    value: "$1.8M",
+    type: "Dollar amount",
+    source: "Revenue Model, row 18",
+  },
+  {
+    field: "Implementation window",
+    value: "45 days",
+    type: "Duration",
+    source: "Vendor Matrix, p.2",
+  },
+  {
+    field: "Risk threshold",
+    value: "$250,000",
+    type: "Dollar amount",
+    source: "Interview Notes, p.8",
+  },
+];
+
+export const initialConversations = [
+  {
+    id: "conv-market",
+    title: "Market growth risks",
+    timestamp: "12 min ago",
+    messages: [
+      {
+        id: "m1",
+        role: "user",
+        text: "Where does the report mention adoption risk?",
+      },
+      {
+        id: "m2",
+        role: "ai",
+        text: "Adoption risk appears in the procurement section. The report says teams slow down when AI answers cannot be tied to reviewed source passages.",
+        citations: [
+          {
+            id: "c1",
+            label: "2026 Market Outlook.pdf, p.3",
+            source:
+              "Enterprise buyers increasingly require retrieval transparency and an audit trail for AI-generated answers.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "conv-vendors",
+    title: "Vendor scoring",
+    timestamp: "Yesterday",
+    messages: [
+      {
+        id: "m3",
+        role: "ai",
+        text: "Vendors with stronger citation traceability and extraction controls scored higher in the evaluation matrix.",
+        citations: [
+          {
+            id: "c2",
+            label: "Vendor Capability Matrix.xlsx, p.2",
+            source:
+              "Vendors with traceable answer provenance received higher evaluation scores.",
+          },
+        ],
+      },
+    ],
+  },
+];
+
+export const referencedDocs = [
+  {
+    label: "Market Outlook",
+    value: 84,
+  },
+  {
+    label: "Interview Notes",
+    value: 64,
+  },
+  {
+    label: "Vendor Matrix",
+    value: 51,
+  },
+  {
+    label: "Revenue Model",
+    value: 38,
+  },
+];
