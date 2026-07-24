@@ -7,7 +7,6 @@ import {
   Link,
   Outlet,
   useLocation,
-  useNavigate,
   useParams,
 } from "react-router";
 import {
@@ -29,10 +28,10 @@ import "../WorkspacePages.css";
 function WorkspacePage() {
   const { workspaceId } = useParams();
   const location = useLocation();
-  const navigate = useNavigate();
   const {
     token,
     user,
+    isLoggingOut,
     logout,
   } = useAuth();
 
@@ -114,9 +113,6 @@ function WorkspacePage() {
 
   function handleLogout() {
     logout();
-    navigate("/", {
-      replace: true,
-    });
   }
 
   return (
@@ -186,6 +182,7 @@ function WorkspacePage() {
             setIsSidebarOpen(false);
           }}
           onLogout={handleLogout}
+          isLoggingOut={isLoggingOut}
         />
       </aside>
 

@@ -1,23 +1,23 @@
-import { Link } from "react-router";
-import { FileSearch } from "lucide-react";
-
 function AuthShell({
   eyebrow,
   title,
   description,
   footer,
+  variant = "login",
   children,
 }) {
   return (
-    <section className="auth-page">
-      <div className="auth-shell">
-        <Link className="auth-brand" to="/">
-          <span className="auth-brand-mark">
-            <FileSearch size={21} />
-          </span>
-          DocuMind
-        </Link>
+    <section className={`auth-page auth-page-${variant}`}>
+      <div className="auth-background" aria-hidden="true">
+        <span className="floating-document floating-document-1" />
+        <span className="floating-document floating-document-2" />
+        <span className="floating-document floating-document-3" />
+        <span className="floating-document floating-document-4" />
+        <span className="floating-document floating-document-5" />
+        <span className="floating-document floating-document-6" />
+      </div>
 
+      <div className="auth-shell">
         <div className="auth-card">
           <div className="auth-heading">
             <p className="eyebrow">{eyebrow}</p>

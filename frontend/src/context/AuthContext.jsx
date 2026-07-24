@@ -5,6 +5,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { useNavigate } from "react-router";
 
 import {
   getCurrentUser,
@@ -17,15 +18,25 @@ const AuthContext = createContext(null);
 const TOKEN_STORAGE_KEY =
   "documind_token";
 
+const LOGOUT_BUFFER_MS = 800;
+
 function getStoredToken() {
   return localStorage.getItem(
     TOKEN_STORAGE_KEY
   );
 }
 
+function wait(milliseconds) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
+}
+
 export function AuthProvider({
   children,
 }) {
+  const navigate = useNavigate();
+
   const [token, setToken] = useState(
     getStoredToken
   );
@@ -34,6 +45,9 @@ export function AuthProvider({
 
   const [isLoading, setIsLoading] =
     useState(Boolean(getStoredToken()));
+
+  const [isLoggingOut, setIsLoggingOut] =
+    useState(false);
 
   function saveAuthentication(authData) {
     setToken(authData.token);
@@ -111,14 +125,24 @@ export function AuthProvider({
     return response;
   }
 
-  function logout() {
+  async function logout() {
+    setIsLoggingOut(true);
+
+    await wait(LOGOUT_BUFFER_MS);
+
     clearAuthentication();
+    setIsLoggingOut(false);
+
+    navigate("/login", {
+      replace: true,
+    });
   }
 
   const contextValue = {
     token,
     user,
     isLoading,
+    isLoggingOut,
     isAuthenticated:
       Boolean(token && user),
     register,

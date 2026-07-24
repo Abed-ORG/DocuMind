@@ -102,6 +102,7 @@ function RegisterPage() {
       eyebrow="Start organizing"
       title="Create your account"
       description="Build intelligent workspaces for your documents."
+      variant="register"
       footer={
         <>
           Already have an account?{" "}

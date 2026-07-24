@@ -90,7 +90,7 @@ function LoginPage() {
   return (
     <AuthShell
       eyebrow="Welcome back"
-      title="Log in to DocuMind"
+      title="Log in"
       description="Access your workspaces and documents."
       footer={
         <>

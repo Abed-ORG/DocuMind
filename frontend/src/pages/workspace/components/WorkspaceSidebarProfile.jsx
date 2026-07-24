@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import {
   ChevronDown,
+  Loader2,
   LogOut,
   Settings,
 } from "lucide-react";
@@ -13,6 +14,7 @@ function WorkspaceSidebarProfile({
   onToggle,
   onClose,
   onLogout,
+  isLoggingOut,
 }) {
   return (
     <div className="workspace-sidebar-profile">
@@ -68,10 +70,21 @@ function WorkspaceSidebarProfile({
             className="profile-menu-item logout-menu-item"
             type="button"
             role="menuitem"
+            disabled={isLoggingOut}
+            aria-busy={isLoggingOut}
             onClick={onLogout}
           >
-            <LogOut size={17} />
-            Logout
+            {isLoggingOut ? (
+              <Loader2
+                className="logout-spinner"
+                size={17}
+              />
+            ) : (
+              <LogOut size={17} />
+            )}
+            {isLoggingOut
+              ? "Logging out..."
+              : "Logout"}
           </button>
         </div>
       )}

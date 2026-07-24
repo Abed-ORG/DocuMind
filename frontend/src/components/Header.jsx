@@ -3,11 +3,11 @@ import {
   Link,
   NavLink,
   useLocation,
-  useNavigate,
 } from "react-router";
 import {
   ChevronDown,
   FileSearch,
+  Loader2,
   LogOut,
   Settings,
 } from "lucide-react";
@@ -24,7 +24,6 @@ function getInitials(user) {
 
 function Header() {
   const location = useLocation();
-  const navigate = useNavigate();
 
   const [isProfileOpen, setIsProfileOpen] =
     useState(false);
@@ -32,6 +31,7 @@ function Header() {
   const {
     user,
     isAuthenticated,
+    isLoggingOut,
     logout,
   } = useAuth();
 
@@ -44,9 +44,6 @@ function Header() {
 
   function handleLogout() {
     logout();
-    navigate("/", {
-      replace: true,
-    });
   }
 
   return (
@@ -119,10 +116,21 @@ function Header() {
                         className="profile-menu-item logout-menu-item"
                         type="button"
                         role="menuitem"
+                        disabled={isLoggingOut}
+                        aria-busy={isLoggingOut}
                         onClick={handleLogout}
                       >
-                        <LogOut size={17} />
-                        Logout
+                        {isLoggingOut ? (
+                          <Loader2
+                            className="logout-spinner"
+                            size={17}
+                          />
+                        ) : (
+                          <LogOut size={17} />
+                        )}
+                        {isLoggingOut
+                          ? "Logging out..."
+                          : "Logout"}
                       </button>
                     </div>
                   )}
