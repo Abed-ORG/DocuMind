@@ -2,7 +2,10 @@ import { workflowSteps } from "../homeData";
 
 function WorkflowSection() {
   return (
-    <section className="landing-section workflow-section">
+    <section
+      id="how-it-works"
+      className="landing-section workflow-section"
+    >
       <div className="landing-container">
         <div className="section-heading">
           <p className="landing-eyebrow">How It Works</p>

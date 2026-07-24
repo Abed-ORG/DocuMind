@@ -56,16 +56,29 @@ function Header() {
           <span>DocuMind</span>
         </Link>
 
+        <nav
+          className="header-section-links"
+          aria-label="Landing sections"
+        >
+          <a className="header-nav-link" href="/#features">
+            Features
+          </a>
+          <a className="header-nav-link" href="/#how-it-works">
+            How It Works
+          </a>
+          {isAuthenticated && (
+            <NavLink
+              className="header-nav-link"
+              to="/dashboard"
+            >
+              Dashboard
+            </NavLink>
+          )}
+        </nav>
+
         <nav className="site-navigation" aria-label="Primary">
           {isAuthenticated ? (
             <>
-              <NavLink
-                className="header-dashboard-button"
-                to="/dashboard"
-              >
-                Dashboard
-              </NavLink>
-
               {!isWorkspaceRoute && (
                 <div className="profile-menu-wrapper">
                   <button
