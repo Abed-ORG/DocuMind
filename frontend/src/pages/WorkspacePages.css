@@ -133,7 +133,7 @@
 .dashboard-header h1 {
   margin: 0;
   color: var(--color-text);
-  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
   line-height: 1.08;
   letter-spacing: 0;
 }
@@ -396,6 +396,104 @@
 
 .upload-document-modal .modal-header {
   padding-right: 48px;
+}
+
+.document-dialog-backdrop {
+  z-index: 100;
+  background:
+    radial-gradient(
+      circle at 50% 28%,
+      rgba(79, 70, 229, 0.16),
+      transparent 32%
+    ),
+    rgba(15, 23, 42, 0.48);
+  animation: uploadBackdropIn 180ms ease-out both;
+}
+
+.document-action-modal {
+  position: relative;
+  width: min(100%, 520px);
+  display: grid;
+  gap: 18px;
+  animation: uploadModalIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.document-action-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 13px;
+}
+
+.document-dialog-icon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: var(--color-primary);
+  background: #eef2ff;
+}
+
+.document-dialog-close {
+  align-self: start;
+}
+
+.document-dialog-copy {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.6;
+}
+
+.document-dialog-copy strong {
+  color: var(--color-text);
+  font-weight: 820;
+  overflow-wrap: anywhere;
+}
+
+.document-rename-form {
+  margin-top: 0;
+}
+
+.document-rename-form .alert {
+  margin-bottom: 0;
+}
+
+.duplicate-name-card {
+  padding: 14px;
+  border: 1px solid rgba(79, 70, 229, 0.16);
+  border-radius: var(--radius-card);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(79, 70, 229, 0.08),
+      rgba(45, 212, 191, 0.08)
+    ),
+    #ffffff;
+}
+
+.document-dialog-file-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.document-dialog-file-row > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.document-dialog-file-row span:not(.file-icon) {
+  color: var(--color-subtle);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.document-dialog-file-row strong {
+  color: var(--color-text);
+  overflow-wrap: anywhere;
 }
 
 .delete-warning {
@@ -936,6 +1034,8 @@
   .upload-zone.is-dragging svg,
   .upload-modal-backdrop,
   .upload-modal-backdrop.is-closing,
+  .document-dialog-backdrop,
+  .document-action-modal,
   .upload-document-modal,
   .upload-modal-backdrop.is-closing .upload-document-modal {
     animation: none;
@@ -1486,6 +1586,27 @@
   text-align: left;
 }
 
+.conversation-select-button {
+  width: 100%;
+  min-height: 46px;
+  padding: 0;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.conversation-select-button:focus-visible {
+  outline: 2px solid rgba(79, 70, 229, 0.45);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
 .conversation-item strong {
   color: var(--color-text);
 }
@@ -1498,6 +1619,24 @@
 .conversation-item.is-active {
   border-color: rgba(79, 70, 229, 0.2);
   background: #eef2ff;
+}
+
+.conversation-title-input {
+  width: 100%;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid rgba(79, 70, 229, 0.42);
+  border-radius: 7px;
+  color: var(--color-text);
+  background: #fff;
+  font: inherit;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.conversation-title-input:focus {
+  border-color: var(--color-primary);
+  outline: 3px solid rgba(79, 70, 229, 0.13);
 }
 
 .chat-main {

@@ -22,6 +22,12 @@ function ChatTab() {
   const [conversationSearch, setConversationSearch] =
     useState("");
 
+  const [renamingConversationId, setRenamingConversationId] =
+    useState(null);
+
+  const [renameInput, setRenameInput] =
+    useState("");
+
   const [messageInput, setMessageInput] =
     useState("");
 
@@ -31,6 +37,8 @@ function ChatTab() {
     useState(null);
 
   const messageEndRef = useRef(null);
+  const renameInputRef = useRef(null);
+  const shouldSkipRenameCommitRef = useRef(false);
   const isAwaitingResponseRef = useRef(false);
 
   const activeConversation = conversations.find(
@@ -50,6 +58,13 @@ function ChatTab() {
     });
   }, [activeConversation?.messages.length, isTyping]);
 
+  useEffect(() => {
+    if (renamingConversationId) {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }
+  }, [renamingConversationId]);
+
   function createConversation() {
     const id = `conv-${Date.now()}`;
 
@@ -64,6 +79,45 @@ function ChatTab() {
     ]);
     setActiveConversationId(id);
     setActiveCitation(null);
+    setRenamingConversationId(null);
+  }
+
+  function startRenamingConversation(conversation) {
+    setActiveConversationId(conversation.id);
+    setActiveCitation(null);
+    shouldSkipRenameCommitRef.current = false;
+    setRenamingConversationId(conversation.id);
+    setRenameInput(conversation.title);
+  }
+
+  function finishRenamingConversation() {
+    if (!renamingConversationId) {
+      return;
+    }
+
+    const nextTitle = renameInput.trim();
+
+    if (nextTitle) {
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === renamingConversationId
+            ? {
+                ...conversation,
+                title: nextTitle,
+              }
+            : conversation
+        )
+      );
+    }
+
+    setRenamingConversationId(null);
+    setRenameInput("");
+  }
+
+  function cancelRenamingConversation() {
+    shouldSkipRenameCommitRef.current = true;
+    setRenamingConversationId(null);
+    setRenameInput("");
   }
 
   function sendMessage(event) {
@@ -168,22 +222,64 @@ function ChatTab() {
 
         <div className="conversation-items">
           {filteredConversations.map((conversation) => (
-            <button
+            <div
               key={conversation.id}
               className={
                 conversation.id === activeConversationId
                   ? "conversation-item is-active"
                   : "conversation-item"
               }
-              type="button"
-              onClick={() => {
-                setActiveConversationId(conversation.id);
-                setActiveCitation(null);
-              }}
             >
-              <strong>{conversation.title}</strong>
-              <span>{conversation.timestamp}</span>
-            </button>
+              {renamingConversationId === conversation.id ? (
+                <>
+                  <input
+                    ref={renameInputRef}
+                    className="conversation-title-input"
+                    value={renameInput}
+                    onChange={(event) =>
+                      setRenameInput(event.target.value)
+                    }
+                    onBlur={() => {
+                      if (shouldSkipRenameCommitRef.current) {
+                        shouldSkipRenameCommitRef.current = false;
+                        return;
+                      }
+
+                      finishRenamingConversation();
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        finishRenamingConversation();
+                      }
+
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        cancelRenamingConversation();
+                      }
+                    }}
+                    aria-label="Rename conversation"
+                  />
+                  <span>{conversation.timestamp}</span>
+                </>
+              ) : (
+                <button
+                  className="conversation-select-button"
+                  type="button"
+                  onClick={() => {
+                    setActiveConversationId(conversation.id);
+                    setActiveCitation(null);
+                  }}
+                  onDoubleClick={() =>
+                    startRenamingConversation(conversation)
+                  }
+                  title="Double-click to rename"
+                >
+                  <strong>{conversation.title}</strong>
+                  <span>{conversation.timestamp}</span>
+                </button>
+              )}
+            </div>
           ))}
         </div>
       </aside>

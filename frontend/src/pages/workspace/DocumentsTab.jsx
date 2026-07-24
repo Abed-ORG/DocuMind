@@ -10,7 +10,9 @@ import { useAuth } from "../../context/AuthContext";
 import { uploadDocument } from "../../services/api";
 import CrossDocumentComparison from "./components/CrossDocumentComparison";
 import DocumentTable from "./components/DocumentTable";
+import DuplicateDocumentDialog from "./components/DuplicateDocumentDialog";
 import PreviewPanel from "./components/PreviewPanel";
+import RenameDocumentDialog from "./components/RenameDocumentDialog";
 import StructuredExtraction from "./components/StructuredExtraction";
 import SummaryPanel from "./components/SummaryPanel";
 import UploadDocumentsDialog from "./components/UploadDocumentsDialog";
@@ -49,6 +51,15 @@ function DocumentsTab() {
   const [isUploadDialogOpen, setIsUploadDialogOpen] =
     useState(false);
 
+  const [renameDialogDocument, setRenameDialogDocument] =
+    useState(null);
+
+  const [renameDialogError, setRenameDialogError] =
+    useState("");
+
+  const [duplicateDialog, setDuplicateDialog] =
+    useState(null);
+
   const [uploadQueue, setUploadQueue] =
     useState([]);
 
@@ -77,6 +88,7 @@ function DocumentsTab() {
   });
 
   const extractionRef = useRef(null);
+  const duplicateDecisionResolverRef = useRef(null);
 
   const filteredDocuments = useMemo(
     () =>
@@ -195,6 +207,13 @@ function DocumentsTab() {
     return () => window.clearInterval(timer);
   }, [hasExpiringUploadMessages]);
 
+  useEffect(
+    () => () => {
+      duplicateDecisionResolverRef.current?.(false);
+    },
+    []
+  );
+
   function openSummary(document) {
     const cached = document.id === "market-outlook";
 
@@ -240,26 +259,56 @@ function DocumentsTab() {
     );
   }
 
-  function renameDocument(document) {
-    const nextName = window.prompt(
-      "Rename document",
-      document.name
+  function openRenameDialog(document) {
+    setRenameDialogDocument(document);
+    setRenameDialogError("");
+  }
+
+  function closeRenameDialog() {
+    setRenameDialogDocument(null);
+    setRenameDialogError("");
+  }
+
+  function submitRenameDocument(nextName) {
+    if (!renameDialogDocument) {
+      return;
+    }
+
+    const trimmedName = nextName.trim();
+
+    if (!trimmedName) {
+      setRenameDialogError(
+        "Document name cannot be empty."
+      );
+      return;
+    }
+
+    const nameAlreadyExists = documents.some(
+      (document) =>
+        document.id !== renameDialogDocument.id &&
+        document.name.toLowerCase() ===
+          trimmedName.toLowerCase()
     );
 
-    if (!nextName?.trim()) {
+    if (nameAlreadyExists) {
+      setRenameDialogError(
+        "Another document already uses this name."
+      );
       return;
     }
 
     setDocuments((current) =>
       current.map((item) =>
-        item.id === document.id
+        item.id === renameDialogDocument.id
           ? {
               ...item,
-              name: nextName.trim(),
+              name: trimmedName,
             }
           : item
       )
     );
+
+    closeRenameDialog();
   }
 
   function deleteDocument(documentId) {
@@ -293,6 +342,25 @@ function DocumentsTab() {
     );
   }
 
+  function requestDuplicateUploadDecision({
+    fileName,
+    duplicateName,
+  }) {
+    return new Promise((resolve) => {
+      duplicateDecisionResolverRef.current = resolve;
+      setDuplicateDialog({
+        fileName,
+        duplicateName,
+      });
+    });
+  }
+
+  function resolveDuplicateUploadDecision(shouldUpload) {
+    duplicateDecisionResolverRef.current?.(shouldUpload);
+    duplicateDecisionResolverRef.current = null;
+    setDuplicateDialog(null);
+  }
+
   async function uploadFiles(files) {
     if (
       files.length === 0 ||
@@ -306,7 +374,9 @@ function DocumentsTab() {
       (document) => document.name
     );
 
-    const uploadItems = files.map((file) => {
+    const uploadItems = [];
+
+    for (const file of files) {
       const error = validateUploadFile(file);
       let displayName = file.name;
       let isSkipped = false;
@@ -326,9 +396,10 @@ function DocumentsTab() {
             );
 
           const shouldUploadDuplicate =
-            window.confirm(
-              `${file.name} already exists in this workspace.\n\nSelect OK to add it as "${duplicateName}", or Cancel to skip this file.`
-            );
+            await requestDuplicateUploadDecision({
+              fileName: file.name,
+              duplicateName,
+            });
 
           if (shouldUploadDuplicate) {
             displayName = duplicateName;
@@ -342,15 +413,15 @@ function DocumentsTab() {
         }
       }
 
-      return {
+      uploadItems.push({
         id: createUploadId(file),
         file,
         name: displayName,
         size: formatFileSize(file.size),
         error: message,
         isSkipped,
-      };
-    });
+      });
+    }
 
     const now = Date.now();
     setUploadTimerTick(now);
@@ -565,7 +636,7 @@ function DocumentsTab() {
         onOpenSummary={openSummary}
         onOpenPreview={setPreviewDocument}
         onOpenUploadDialog={() => setIsUploadDialogOpen(true)}
-        onRenameDocument={renameDocument}
+        onRenameDocument={openRenameDialog}
         onOpenExtraction={openExtraction}
         onDeleteDocument={deleteDocument}
       />
@@ -584,6 +655,27 @@ function DocumentsTab() {
           onClearMessages={clearUploadMessages}
           onDismissMessage={dismissUploadMessage}
           onClose={closeUploadDialog}
+        />
+      )}
+
+      {renameDialogDocument && (
+        <RenameDocumentDialog
+          document={renameDialogDocument}
+          error={renameDialogError}
+          onCancel={closeRenameDialog}
+          onSubmit={submitRenameDocument}
+        />
+      )}
+
+      {duplicateDialog && (
+        <DuplicateDocumentDialog
+          duplicate={duplicateDialog}
+          onAddDuplicate={() =>
+            resolveDuplicateUploadDecision(true)
+          }
+          onSkip={() =>
+            resolveDuplicateUploadDecision(false)
+          }
         />
       )}
 
