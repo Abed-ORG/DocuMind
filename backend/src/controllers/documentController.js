@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import Document from "../models/Document.js";
 import Workspace from "../models/Workspace.js";
+import { cascadeDeleteDocumentData } from "../services/workspaceCascadeService.js";
 
 const currentDirectory = path.dirname(
   fileURLToPath(import.meta.url)
@@ -332,6 +333,11 @@ export async function deleteDocument(req, res, next) {
       });
     }
 
+    const deletedRelatedData =
+      await cascadeDeleteDocumentData({
+        documentId: document._id,
+      });
+
     await removeStoredDocumentFile(document);
 
     await Document.deleteOne({
@@ -344,6 +350,7 @@ export async function deleteDocument(req, res, next) {
       message: "Document deleted successfully.",
       deleted: {
         document: 1,
+        ...deletedRelatedData,
       },
     });
   } catch (error) {

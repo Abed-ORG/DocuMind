@@ -163,3 +163,31 @@ export async function cascadeDeleteWorkspaceData({
     ),
   };
 }
+
+export async function cascadeDeleteDocumentData({
+  documentId,
+}) {
+  const documentIds = withStringForms([
+    documentId,
+  ]);
+
+  const documentFilter = fieldIn(
+    "documentId",
+    documentIds
+  );
+
+  return {
+    summaries: await deleteFromCollection(
+      collectionNames.summaries,
+      documentFilter
+    ),
+    chunks: await deleteFromCollection(
+      collectionNames.chunks,
+      documentFilter
+    ),
+    embeddings: await deleteFromCollection(
+      collectionNames.embeddings,
+      documentFilter
+    ),
+  };
+}
