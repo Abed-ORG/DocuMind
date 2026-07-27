@@ -9,7 +9,7 @@ import {
   maxUploadSizeBytes,
   navItems,
   supportedUploadExtensions,
-} from "./workspaceData";
+} from "../data/workspaceData";
 
 export function getInitials(user) {
   const first = user?.firstName?.[0] ?? "";

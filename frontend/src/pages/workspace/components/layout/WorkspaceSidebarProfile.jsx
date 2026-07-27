@@ -6,8 +6,8 @@ import {
   Settings,
 } from "lucide-react";
 
-import { getInitials } from "../workspaceUtils";
-import { getStorageUsage } from "../../../utils/storageUsage";
+import { getInitials } from "../../utils/workspaceUtils";
+import { getStorageUsage } from "../../../../utils/storageUsage";
 
 function WorkspaceSidebarProfile({
   user,

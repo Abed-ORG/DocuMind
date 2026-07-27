@@ -5,7 +5,7 @@ import {
   Sparkles,
 } from "lucide-react";
 
-import { referencedDocs } from "./workspaceData";
+import { referencedDocs } from "../data/workspaceData";
 
 function AnalyticsTab() {
   return (

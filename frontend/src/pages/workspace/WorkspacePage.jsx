@@ -17,13 +17,13 @@ import {
 
 import { useAuth } from "../../context/AuthContext";
 import { getWorkspace as getWorkspaceRequest } from "../../services/api";
-import WorkspaceSidebarProfile from "./components/WorkspaceSidebarProfile";
-import WorkspaceStatusPanel from "./components/WorkspaceStatusPanel";
+import { WorkspaceStatusPanel } from "./components/feedback";
+import { WorkspaceSidebarProfile } from "./components/layout";
 import {
   defaultWorkspaceColor,
   navItems,
-} from "./workspaceData";
-import { getActiveSection } from "./workspaceUtils";
+} from "./data/workspaceData";
+import { getActiveSection } from "./utils/workspaceUtils";
 import "../WorkspacePages.css";
 
 function WorkspacePage() {

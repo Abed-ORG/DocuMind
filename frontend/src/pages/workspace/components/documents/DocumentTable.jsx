@@ -15,9 +15,9 @@ import {
   UploadCloud,
 } from "lucide-react";
 
-import documindHero from "../../../assets/documind-hero.png";
-import { statusLabels } from "../workspaceData";
-import { getFormatIcon } from "../workspaceUtils";
+import documindHero from "../../../../assets/documind-hero.png";
+import { statusLabels } from "../../data/workspaceData";
+import { getFormatIcon } from "../../utils/workspaceUtils";
 
 function DocumentActionsMenu({
   document,

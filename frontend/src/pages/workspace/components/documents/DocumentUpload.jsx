@@ -4,7 +4,7 @@ import {
   X,
 } from "lucide-react";
 
-import { getUploadStatusLabel } from "../workspaceUtils";
+import { getUploadStatusLabel } from "../../utils/workspaceUtils";
 
 function DocumentUpload({
   isUploadingDocument,

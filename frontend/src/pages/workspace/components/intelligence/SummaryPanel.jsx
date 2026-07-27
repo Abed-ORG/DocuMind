@@ -3,7 +3,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-import { summaryLevels } from "../workspaceData";
+import { summaryLevels } from "../../data/workspaceData";
 
 function SummaryPanel({
   summaryState,

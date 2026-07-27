@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { emptyWorkspace } from "../workspaceDashboardUtils";
+import { emptyWorkspace } from "../../utils/workspaceDashboardUtils";
 
 function WorkspaceModal({
   mode,

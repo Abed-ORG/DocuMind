@@ -11,17 +11,21 @@ import {
   getWorkspaces,
   updateWorkspace,
 } from "../../services/api";
-import DashboardHeader from "./components/DashboardHeader";
-import DashboardState from "./components/DashboardState";
-import DeleteWorkspaceDialog from "./components/DeleteWorkspaceDialog";
-import MetricStrip from "./components/MetricStrip";
-import WorkspaceGrid from "./components/WorkspaceGrid";
-import WorkspaceModal from "./components/WorkspaceModal";
+import {
+  DashboardHeader,
+  DashboardState,
+  MetricStrip,
+} from "./components/dashboard";
+import {
+  DeleteWorkspaceDialog,
+  WorkspaceModal,
+} from "./components/dialogs";
+import { WorkspaceGrid } from "./components/workspaceCards";
 import {
   buildWorkspacePayload,
   emptyWorkspace,
   normalizeWorkspace,
-} from "./workspaceDashboardUtils";
+} from "./utils/workspaceDashboardUtils";
 import "../WorkspacePages.css";
 
 function WorkspacesPage() {

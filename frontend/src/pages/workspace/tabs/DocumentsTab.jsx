@@ -6,27 +6,31 @@ import {
 } from "react";
 import { useParams } from "react-router";
 
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../../context/AuthContext";
 import {
   deleteDocument as deleteDocumentRequest,
   getDocumentPreview,
   getDocuments,
   updateDocument as updateDocumentRequest,
   uploadDocument,
-} from "../../services/api";
-import CrossDocumentComparison from "./components/CrossDocumentComparison";
-import DeleteDocumentDialog from "./components/DeleteDocumentDialog";
-import DocumentTable from "./components/DocumentTable";
-import DuplicateDocumentDialog from "./components/DuplicateDocumentDialog";
-import PreviewPanel from "./components/PreviewPanel";
-import RenameDocumentDialog from "./components/RenameDocumentDialog";
-import StructuredExtraction from "./components/StructuredExtraction";
-import SummaryPanel from "./components/SummaryPanel";
-import UploadDocumentsDialog from "./components/UploadDocumentsDialog";
+} from "../../../services/api";
+import {
+  DeleteDocumentDialog,
+  DocumentTable,
+  DuplicateDocumentDialog,
+  PreviewPanel,
+  RenameDocumentDialog,
+  UploadDocumentsDialog,
+} from "../components/documents";
+import {
+  CrossDocumentComparison,
+  StructuredExtraction,
+  SummaryPanel,
+} from "../components/intelligence";
 import {
   extractionRows,
   summaryCopy,
-} from "./workspaceData";
+} from "../data/workspaceData";
 import {
   createUploadId,
   documentContentDuplicateExists,
@@ -35,7 +39,7 @@ import {
   getFileHash,
   mapApiDocument,
   validateUploadFile,
-} from "./workspaceUtils";
+} from "../utils/workspaceUtils";
 
 const uploadNotificationDurationMs = 5000;
 const defaultComparisonTopic =

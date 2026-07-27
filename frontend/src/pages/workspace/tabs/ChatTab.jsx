@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 
-import { initialConversations } from "./workspaceData";
+import { initialConversations } from "../data/workspaceData";
 
 function ChatTab() {
   const [conversations, setConversations] =

@@ -5,7 +5,7 @@ import {
   X,
 } from "lucide-react";
 
-import { statusLabels } from "../workspaceData";
+import { statusLabels } from "../../data/workspaceData";
 
 function CsvPreviewTable({ table }) {
   const columns = Array.isArray(table?.columns)

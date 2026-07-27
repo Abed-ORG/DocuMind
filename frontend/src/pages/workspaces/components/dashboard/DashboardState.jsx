@@ -5,7 +5,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-import documindHero from "../../../assets/documind-hero.png";
+import documindHero from "../../../../assets/documind-hero.png";
 
 function DashboardState({
   type,
