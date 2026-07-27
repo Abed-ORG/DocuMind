@@ -11,6 +11,7 @@ import {
 function RenameDocumentDialog({
   document,
   error,
+  isSubmitting,
   onCancel,
   onSubmit,
 }) {
@@ -51,6 +52,7 @@ function RenameDocumentDialog({
             className="icon-button document-dialog-close"
             type="button"
             aria-label="Close rename dialog"
+            disabled={isSubmitting}
             onClick={onCancel}
           >
             <X size={18} />
@@ -67,6 +69,7 @@ function RenameDocumentDialog({
               onChange={(event) =>
                 setName(event.target.value)
               }
+              disabled={isSubmitting}
               placeholder="Example: Market outlook.pdf"
               required
             />
@@ -82,6 +85,7 @@ function RenameDocumentDialog({
             <button
               className="secondary-action"
               type="button"
+              disabled={isSubmitting}
               onClick={onCancel}
             >
               Cancel
@@ -89,8 +93,9 @@ function RenameDocumentDialog({
             <button
               className="primary-action"
               type="submit"
+              disabled={isSubmitting}
             >
-              Save name
+              {isSubmitting ? "Saving..." : "Save name"}
             </button>
           </footer>
         </form>

@@ -41,7 +41,7 @@ export function formatUploadedAt(value) {
   }).format(new Date(value));
 }
 
-export function mapUploadedDocument(document) {
+export function mapApiDocument(document) {
   return {
     id: document.id,
     name: document.originalName,

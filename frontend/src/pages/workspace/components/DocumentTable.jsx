@@ -1,6 +1,8 @@
 import {
+  AlertCircle,
   Eye,
   GitCompareArrows,
+  Loader2,
   Search,
   Trash2,
   UploadCloud,
@@ -12,8 +14,12 @@ import { getFormatIcon } from "../workspaceUtils";
 
 function DocumentTable({
   filteredDocuments,
+  hasDocuments,
+  isLoading,
+  error,
   searchTerm,
   onSearchTermChange,
+  onRetry,
   onOpenSummary,
   onOpenPreview,
   onOpenUploadDialog,
@@ -53,10 +59,35 @@ function DocumentTable({
         </div>
       </div>
 
-      {filteredDocuments.length === 0 ? (
+      {isLoading ? (
+        <div className="empty-state compact document-table-state">
+          <Loader2 className="spinner" size={34} />
+          <h2>Loading documents</h2>
+          <p>
+            Fetching the latest files stored in this workspace.
+          </p>
+        </div>
+      ) : error ? (
+        <div className="empty-state compact document-table-state">
+          <AlertCircle size={34} />
+          <h2>Unable to load documents</h2>
+          <p>{error}</p>
+          <button
+            className="secondary-action"
+            type="button"
+            onClick={onRetry}
+          >
+            Retry
+          </button>
+        </div>
+      ) : filteredDocuments.length === 0 ? (
         <div className="empty-state compact">
           <img src={documindHero} alt="" />
-          <h2>No documents yet. Upload your first file to get started.</h2>
+          <h2>
+            {hasDocuments
+              ? "No documents match your search."
+              : "No documents yet. Upload your first file to get started."}
+          </h2>
         </div>
       ) : (
         <div className="document-table-wrap">
@@ -131,7 +162,7 @@ function DocumentTable({
                         <button
                           className="danger-action"
                           type="button"
-                          onClick={() => onDeleteDocument(document.id)}
+                          onClick={() => onDeleteDocument(document)}
                         >
                           <Trash2 size={15} />
                           Delete

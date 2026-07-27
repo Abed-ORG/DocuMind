@@ -24,64 +24,6 @@ export const navItems = [
   },
 ];
 
-export const initialDocuments = [
-  {
-    id: "market-outlook",
-    name: "2026 Market Outlook.pdf",
-    format: "PDF",
-    pages: 42,
-    size: "8.4 MB",
-    uploadedAt: "Jul 17, 2026",
-    status: "ready",
-    preview:
-      "The report describes software buying cycles, budget expansion in AI search, and new compliance expectations for source-grounded answers.\n\n--- Page 2 ---\nEnterprise buyers increasingly require retrieval transparency and an audit trail for AI-generated answers.\n\n--- Page 3 ---\nNorth America remains the largest segment, while regulated industries show the fastest growth in document intelligence tooling.",
-  },
-  {
-    id: "vendor-matrix",
-    name: "Vendor Capability Matrix.xlsx",
-    format: "CSV",
-    pages: 12,
-    size: "1.7 MB",
-    uploadedAt: "Jul 16, 2026",
-    status: "processing",
-    preview:
-      "Capability categories include ingestion, OCR accuracy, citation quality, structured extraction, and admin controls.\n\n--- Page 2 ---\nVendors with traceable answer provenance received higher evaluation scores.",
-  },
-  {
-    id: "interview-notes",
-    name: "Customer Interview Notes.docx",
-    format: "DOCX",
-    pages: 19,
-    size: "2.2 MB",
-    uploadedAt: "Jul 13, 2026",
-    status: "ready",
-    preview:
-      "Interviewees emphasized trust, speed, and the ability to compare related documents without exporting files.\n\n--- Page 2 ---\nRepeated themes: faster evidence review, source highlighting, and easy summaries for executives.",
-  },
-  {
-    id: "legacy-policy",
-    name: "Legacy Policy Dump.txt",
-    format: "TXT",
-    pages: 86,
-    size: "4.9 MB",
-    uploadedAt: "Jul 11, 2026",
-    status: "failed",
-    preview:
-      "Import failed before text extraction completed. Retry with a UTF-8 encoded text file.",
-  },
-  {
-    id: "quarterly-model",
-    name: "Quarterly Revenue Model.csv",
-    format: "CSV",
-    pages: 7,
-    size: "940 KB",
-    uploadedAt: "Jul 10, 2026",
-    status: "uploading",
-    preview:
-      "Rows include quarter, region, revenue, gross margin, and customer cohort.",
-  },
-];
-
 export const statusLabels = {
   uploaded: "Uploaded",
   uploading: "Uploading",

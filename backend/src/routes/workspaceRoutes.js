@@ -7,12 +7,21 @@ import {
   getWorkspaces,
   updateWorkspace,
 } from "../controllers/workspaceController.js";
-import { createDocument } from "../controllers/documentController.js";
+import {
+  createDocument,
+  deleteDocument,
+  getDocuments,
+  updateDocument,
+} from "../controllers/documentController.js";
 
 import { protect } from "../middleware/authMiddleware.js";
 import { uploadDocumentFile } from "../middleware/documentUpload.js";
 import { validateRequest } from "../middleware/validateRequest.js";
 
+import {
+  documentIdValidator,
+  updateDocumentValidators,
+} from "../validators/documentValidators.js";
 import {
   createWorkspaceValidators,
   updateWorkspaceValidators,
@@ -32,13 +41,35 @@ router
     createWorkspace
   );
 
-router.post(
-  "/:id/documents",
-  workspaceIdValidator,
-  validateRequest,
-  uploadDocumentFile,
-  createDocument
-);
+router
+  .route("/:id/documents")
+  .get(
+    workspaceIdValidator,
+    validateRequest,
+    getDocuments
+  )
+  .post(
+    workspaceIdValidator,
+    validateRequest,
+    uploadDocumentFile,
+    createDocument
+  );
+
+router
+  .route("/:id/documents/:documentId")
+  .put(
+    workspaceIdValidator,
+    documentIdValidator,
+    updateDocumentValidators,
+    validateRequest,
+    updateDocument
+  )
+  .delete(
+    workspaceIdValidator,
+    documentIdValidator,
+    validateRequest,
+    deleteDocument
+  );
 
 router
   .route("/:id")

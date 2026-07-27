@@ -6,6 +6,19 @@ function CrossDocumentComparison({
   onComparisonChange,
   onCompare,
 }) {
+  const firstDocument = documents.find(
+    (document) => document.id === comparison.firstDocumentId
+  );
+
+  const secondDocument = documents.find(
+    (document) => document.id === comparison.secondDocumentId
+  );
+
+  const canCompare =
+    documents.length >= 2 &&
+    Boolean(comparison.topic.trim()) &&
+    comparison.firstDocumentId !== comparison.secondDocumentId;
+
   return (
     <section className="comparison-panel">
       <header className="panel-header">
@@ -21,6 +34,7 @@ function CrossDocumentComparison({
           <select
             id="first-document"
             value={comparison.firstDocumentId}
+            disabled={documents.length === 0}
             onChange={(event) =>
               onComparisonChange((current) => ({
                 ...current,
@@ -29,6 +43,9 @@ function CrossDocumentComparison({
               }))
             }
           >
+            {documents.length === 0 && (
+              <option value="">No documents uploaded</option>
+            )}
             {documents.map((document) => (
               <option key={document.id} value={document.id}>
                 {document.name}
@@ -44,6 +61,7 @@ function CrossDocumentComparison({
           <select
             id="second-document"
             value={comparison.secondDocumentId}
+            disabled={documents.length < 2}
             onChange={(event) =>
               onComparisonChange((current) => ({
                 ...current,
@@ -52,6 +70,11 @@ function CrossDocumentComparison({
               }))
             }
           >
+            {documents.length < 2 && (
+              <option value="">
+                Upload another document to compare
+              </option>
+            )}
             {documents.map((document) => (
               <option key={document.id} value={document.id}>
                 {document.name}
@@ -82,13 +105,14 @@ function CrossDocumentComparison({
           className="primary-action"
           type="button"
           onClick={onCompare}
+          disabled={!canCompare}
         >
           <GitCompareArrows size={17} />
           Step 3: Compare
         </button>
       </div>
 
-      {comparison.hasResult && (
+      {comparison.hasResult && firstDocument && secondDocument && (
         <article className="comparison-result">
           <h3>Comparative response</h3>
           <p>
@@ -98,8 +122,8 @@ function CrossDocumentComparison({
             blocker when source passages are hard to inspect.
           </p>
           <div className="citation-chip-row">
-            <button type="button">2026 Market Outlook.pdf, p.3</button>
-            <button type="button">Customer Interview Notes.docx, p.2</button>
+            <button type="button">{firstDocument.name}</button>
+            <button type="button">{secondDocument.name}</button>
           </div>
         </article>
       )}

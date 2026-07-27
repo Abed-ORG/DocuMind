@@ -1,16 +1,72 @@
+import Document from "../models/Document.js";
 import Workspace from "../models/Workspace.js";
 import { cascadeDeleteWorkspaceData } from "../services/workspaceCascadeService.js";
 
-function formatWorkspace(workspace) {
+function formatWorkspace(
+  workspace,
+  stats = {}
+) {
   return {
     id: workspace._id,
     userId: workspace.userId,
     name: workspace.name,
     description: workspace.description,
     color: workspace.color,
+    documentCount: stats.documentCount ?? 0,
+    pageCount: stats.pageCount ?? 0,
     createdAt: workspace.createdAt,
     updatedAt: workspace.updatedAt,
   };
+}
+
+async function getDocumentStatsByWorkspace(
+  workspaceIds
+) {
+  if (workspaceIds.length === 0) {
+    return new Map();
+  }
+
+  const stats = await Document.aggregate([
+    {
+      $match: {
+        workspaceId: {
+          $in: workspaceIds,
+        },
+      },
+    },
+    {
+      $group: {
+        _id: "$workspaceId",
+        documentCount: {
+          $sum: 1,
+        },
+        pageCount: {
+          $sum: "$pageCount",
+        },
+      },
+    },
+  ]);
+
+  return new Map(
+    stats.map((item) => [
+      item._id.toString(),
+      {
+        documentCount: item.documentCount,
+        pageCount: item.pageCount ?? 0,
+      },
+    ])
+  );
+}
+
+function getWorkspaceStats(
+  statsByWorkspaceId,
+  workspaceId
+) {
+  return (
+    statsByWorkspaceId.get(
+      workspaceId.toString()
+    ) ?? {}
+  );
 }
 
 function buildWorkspaceUpdates(body) {
@@ -111,9 +167,22 @@ export async function getWorkspaces(req, res, next) {
       updatedAt: -1,
     });
 
+    const statsByWorkspaceId =
+      await getDocumentStatsByWorkspace(
+        workspaces.map((workspace) => workspace._id)
+      );
+
     return res.status(200).json({
       success: true,
-      workspaces: workspaces.map(formatWorkspace),
+      workspaces: workspaces.map((workspace) =>
+        formatWorkspace(
+          workspace,
+          getWorkspaceStats(
+            statsByWorkspaceId,
+            workspace._id
+          )
+        )
+      ),
     });
   } catch (error) {
     next(error);
@@ -134,9 +203,20 @@ export async function getWorkspace(req, res, next) {
       });
     }
 
+    const statsByWorkspaceId =
+      await getDocumentStatsByWorkspace([
+        workspace._id,
+      ]);
+
     return res.status(200).json({
       success: true,
-      workspace: formatWorkspace(workspace),
+      workspace: formatWorkspace(
+        workspace,
+        getWorkspaceStats(
+          statsByWorkspaceId,
+          workspace._id
+        )
+      ),
     });
   } catch (error) {
     next(error);
@@ -181,10 +261,21 @@ export async function updateWorkspace(req, res, next) {
       });
     }
 
+    const statsByWorkspaceId =
+      await getDocumentStatsByWorkspace([
+        workspace._id,
+      ]);
+
     return res.status(200).json({
       success: true,
       message: "Workspace updated successfully.",
-      workspace: formatWorkspace(workspace),
+      workspace: formatWorkspace(
+        workspace,
+        getWorkspaceStats(
+          statsByWorkspaceId,
+          workspace._id
+        )
+      ),
     });
   } catch (error) {
     if (error.code === 11000) {

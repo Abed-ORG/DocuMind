@@ -7,8 +7,14 @@ import {
 import { useParams } from "react-router";
 
 import { useAuth } from "../../context/AuthContext";
-import { uploadDocument } from "../../services/api";
+import {
+  deleteDocument as deleteDocumentRequest,
+  getDocuments,
+  updateDocument as updateDocumentRequest,
+  uploadDocument,
+} from "../../services/api";
 import CrossDocumentComparison from "./components/CrossDocumentComparison";
+import DeleteDocumentDialog from "./components/DeleteDocumentDialog";
 import DocumentTable from "./components/DocumentTable";
 import DuplicateDocumentDialog from "./components/DuplicateDocumentDialog";
 import PreviewPanel from "./components/PreviewPanel";
@@ -18,7 +24,6 @@ import SummaryPanel from "./components/SummaryPanel";
 import UploadDocumentsDialog from "./components/UploadDocumentsDialog";
 import {
   extractionRows,
-  initialDocuments,
   summaryCopy,
 } from "./workspaceData";
 import {
@@ -26,18 +31,32 @@ import {
   documentNameExists,
   formatFileSize,
   getDuplicateDocumentName,
-  mapUploadedDocument,
+  mapApiDocument,
   validateUploadFile,
 } from "./workspaceUtils";
 
 const uploadNotificationDurationMs = 5000;
+const defaultComparisonTopic =
+  "citation quality and buyer risk";
 
 function DocumentsTab() {
   const { workspaceId } = useParams();
   const { token } = useAuth();
 
   const [documents, setDocuments] =
-    useState(initialDocuments);
+    useState([]);
+
+  const [isLoadingDocuments, setIsLoadingDocuments] =
+    useState(true);
+
+  const [documentsError, setDocumentsError] =
+    useState("");
+
+  const [documentsReloadKey, setDocumentsReloadKey] =
+    useState(0);
+
+  const [documentActionError, setDocumentActionError] =
+    useState("");
 
   const [searchTerm, setSearchTerm] =
     useState("");
@@ -57,6 +76,18 @@ function DocumentsTab() {
   const [renameDialogError, setRenameDialogError] =
     useState("");
 
+  const [isRenamingDocument, setIsRenamingDocument] =
+    useState(false);
+
+  const [deleteDialogDocument, setDeleteDialogDocument] =
+    useState(null);
+
+  const [deleteDialogError, setDeleteDialogError] =
+    useState("");
+
+  const [isDeletingDocument, setIsDeletingDocument] =
+    useState(false);
+
   const [duplicateDialog, setDuplicateDialog] =
     useState(null);
 
@@ -73,9 +104,9 @@ function DocumentsTab() {
     useState(null);
 
   const [comparison, setComparison] = useState({
-    firstDocumentId: initialDocuments[0].id,
-    secondDocumentId: initialDocuments[2].id,
-    topic: "citation quality and buyer risk",
+    firstDocumentId: "",
+    secondDocumentId: "",
+    topic: defaultComparisonTopic,
     hasResult: false,
   });
 
@@ -160,6 +191,99 @@ function DocumentsTab() {
     (item) => item.expiresAt
   );
 
+  const comparisonSelection = useMemo(() => {
+    const documentIds = new Set(
+      documents.map((document) => document.id)
+    );
+
+    const firstDocumentId = documentIds.has(
+      comparison.firstDocumentId
+    )
+      ? comparison.firstDocumentId
+      : documents[0]?.id ?? "";
+
+    const secondDocumentId = documentIds.has(
+      comparison.secondDocumentId
+    )
+      ? comparison.secondDocumentId
+      : documents.find(
+          (document) => document.id !== firstDocumentId
+        )?.id ?? "";
+
+    return {
+      ...comparison,
+      firstDocumentId,
+      secondDocumentId,
+      hasResult:
+        comparison.hasResult &&
+        firstDocumentId === comparison.firstDocumentId &&
+        secondDocumentId === comparison.secondDocumentId,
+    };
+  }, [documents, comparison]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadDocuments() {
+      if (!workspaceId || !token) {
+        setDocuments([]);
+        setIsLoadingDocuments(false);
+        return;
+      }
+
+      setIsLoadingDocuments(true);
+      setDocumentsError("");
+      setDocumentActionError("");
+
+      try {
+        const response = await getDocuments(
+          workspaceId,
+          token
+        );
+
+        if (isMounted) {
+          const nextDocuments =
+            response.documents.map(mapApiDocument);
+          const documentIds = new Set(
+            nextDocuments.map((document) => document.id)
+          );
+
+          setDocuments(nextDocuments);
+          setPreviewDocument((current) =>
+            current
+              ? nextDocuments.find(
+                  (document) => document.id === current.id
+                ) ?? null
+              : current
+          );
+          setSummaryState((current) =>
+            current && documentIds.has(current.documentId)
+              ? current
+              : null
+          );
+        }
+      } catch (error) {
+        if (isMounted) {
+          setDocuments([]);
+          setDocumentsError(
+            error.message ||
+              "Unable to load documents."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingDocuments(false);
+        }
+      }
+    }
+
+    loadDocuments();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [workspaceId, token, documentsReloadKey]);
+
   useEffect(() => {
     if (!summaryState?.isLoading) {
       return undefined;
@@ -215,14 +339,12 @@ function DocumentsTab() {
   );
 
   function openSummary(document) {
-    const cached = document.id === "market-outlook";
-
     setSummaryState({
       documentId: document.id,
       level: "executive",
-      cached,
-      isLoading: !cached,
-      text: cached ? summaryCopy.executive : "",
+      cached: false,
+      isLoading: true,
+      text: "",
     });
   }
 
@@ -232,16 +354,12 @@ function DocumentsTab() {
         return current;
       }
 
-      const cached =
-        current.documentId === "market-outlook" &&
-        level === "executive";
-
       return {
         ...current,
         level,
-        cached,
-        isLoading: !cached,
-        text: cached ? summaryCopy[level] : "",
+        cached: false,
+        isLoading: true,
+        text: "",
       };
     });
   }
@@ -267,9 +385,10 @@ function DocumentsTab() {
   function closeRenameDialog() {
     setRenameDialogDocument(null);
     setRenameDialogError("");
+    setIsRenamingDocument(false);
   }
 
-  function submitRenameDocument(nextName) {
+  async function submitRenameDocument(nextName) {
     if (!renameDialogDocument) {
       return;
     }
@@ -297,24 +416,115 @@ function DocumentsTab() {
       return;
     }
 
-    setDocuments((current) =>
-      current.map((item) =>
-        item.id === renameDialogDocument.id
-          ? {
-              ...item,
-              name: trimmedName,
-            }
-          : item
-      )
-    );
+    if (!workspaceId || !token) {
+      setRenameDialogError(
+        "Unable to rename document without an active session."
+      );
+      return;
+    }
 
-    closeRenameDialog();
+    setIsRenamingDocument(true);
+    setRenameDialogError("");
+    setDocumentActionError("");
+
+    try {
+      const response =
+        await updateDocumentRequest(
+          workspaceId,
+          renameDialogDocument.id,
+          {
+            originalName: trimmedName,
+          },
+          token
+        );
+
+      const updatedDocument = mapApiDocument(
+        response.document
+      );
+
+      setDocuments((current) =>
+        current.map((item) =>
+          item.id === updatedDocument.id
+            ? updatedDocument
+            : item
+        )
+      );
+      setPreviewDocument((current) =>
+        current?.id === updatedDocument.id
+          ? updatedDocument
+          : current
+      );
+
+      closeRenameDialog();
+    } catch (error) {
+      setRenameDialogError(
+        error.message ||
+          "Unable to rename document."
+      );
+    } finally {
+      setIsRenamingDocument(false);
+    }
   }
 
-  function deleteDocument(documentId) {
-    setDocuments((current) =>
-      current.filter((document) => document.id !== documentId)
-    );
+  function openDeleteDialog(document) {
+    setDeleteDialogDocument(document);
+    setDeleteDialogError("");
+    setDocumentActionError("");
+  }
+
+  function closeDeleteDialog() {
+    setDeleteDialogDocument(null);
+    setDeleteDialogError("");
+    setIsDeletingDocument(false);
+  }
+
+  async function confirmDeleteDocument() {
+    if (!deleteDialogDocument) {
+      return;
+    }
+
+    if (!workspaceId || !token) {
+      setDeleteDialogError(
+        "Unable to delete document without an active session."
+      );
+      return;
+    }
+
+    setDocumentActionError("");
+    setDeleteDialogError("");
+    setIsDeletingDocument(true);
+
+    try {
+      const documentId = deleteDialogDocument.id;
+
+      await deleteDocumentRequest(
+        workspaceId,
+        documentId,
+        token
+      );
+
+      setDocuments((current) =>
+        current.filter(
+          (document) => document.id !== documentId
+        )
+      );
+      setPreviewDocument((current) =>
+        current?.id === documentId ? null : current
+      );
+      setSummaryState((current) =>
+        current?.documentId === documentId
+          ? null
+          : current
+      );
+      closeDeleteDialog();
+    } catch (error) {
+      setDeleteDialogError(
+        error.message ||
+          "Unable to delete document."
+      );
+    } finally {
+      setIsDeletingDocument(false);
+    }
   }
 
   function updateUploadQueueItem(id, updates) {
@@ -489,7 +699,7 @@ function DocumentsTab() {
         });
 
         setDocuments((current) => [
-          mapUploadedDocument(response.document),
+          mapApiDocument(response.document),
           ...current,
         ]);
       } catch (error) {
@@ -573,9 +783,15 @@ function DocumentsTab() {
   function handleCompare() {
     setComparison((current) => ({
       ...current,
+      firstDocumentId:
+        comparisonSelection.firstDocumentId,
+      secondDocumentId:
+        comparisonSelection.secondDocumentId,
       hasResult:
-        Boolean(current.topic.trim()) &&
-        current.firstDocumentId !== current.secondDocumentId,
+        documents.length >= 2 &&
+        Boolean(comparisonSelection.topic.trim()) &&
+        comparisonSelection.firstDocumentId !==
+          comparisonSelection.secondDocumentId,
     }));
   }
 
@@ -629,16 +845,28 @@ function DocumentsTab() {
 
   return (
     <div className="documents-tab">
+      {documentActionError && (
+        <div className="alert alert-error documents-action-alert">
+          {documentActionError}
+        </div>
+      )}
+
       <DocumentTable
         filteredDocuments={filteredDocuments}
+        hasDocuments={documents.length > 0}
+        isLoading={isLoadingDocuments}
+        error={documentsError}
         searchTerm={searchTerm}
         onSearchTermChange={setSearchTerm}
+        onRetry={() =>
+          setDocumentsReloadKey((current) => current + 1)
+        }
         onOpenSummary={openSummary}
         onOpenPreview={setPreviewDocument}
         onOpenUploadDialog={() => setIsUploadDialogOpen(true)}
         onRenameDocument={openRenameDialog}
         onOpenExtraction={openExtraction}
-        onDeleteDocument={deleteDocument}
+        onDeleteDocument={openDeleteDialog}
       />
 
       {isUploadDialogOpen && (
@@ -662,6 +890,7 @@ function DocumentsTab() {
         <RenameDocumentDialog
           document={renameDialogDocument}
           error={renameDialogError}
+          isSubmitting={isRenamingDocument}
           onCancel={closeRenameDialog}
           onSubmit={submitRenameDocument}
         />
@@ -679,6 +908,16 @@ function DocumentsTab() {
         />
       )}
 
+      {deleteDialogDocument && (
+        <DeleteDocumentDialog
+          document={deleteDialogDocument}
+          error={deleteDialogError}
+          isDeleting={isDeletingDocument}
+          onCancel={closeDeleteDialog}
+          onConfirm={confirmDeleteDocument}
+        />
+      )}
+
       <SummaryPanel
         summaryState={summaryState}
         document={summaryDocument}
@@ -688,7 +927,7 @@ function DocumentsTab() {
 
       <CrossDocumentComparison
         documents={documents}
-        comparison={comparison}
+        comparison={comparisonSelection}
         onComparisonChange={setComparison}
         onCompare={handleCompare}
       />

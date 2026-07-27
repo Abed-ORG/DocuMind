@@ -127,6 +127,49 @@ export function deleteWorkspace(workspaceId, token) {
   });
 }
 
+export function getDocuments(workspaceId, token) {
+  return request(`/workspaces/${workspaceId}/documents`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export function updateDocument(
+  workspaceId,
+  documentId,
+  documentData,
+  token
+) {
+  return request(
+    `/workspaces/${workspaceId}/documents/${documentId}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(documentData),
+    }
+  );
+}
+
+export function deleteDocument(
+  workspaceId,
+  documentId,
+  token
+) {
+  return request(
+    `/workspaces/${workspaceId}/documents/${documentId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
 export function uploadDocument(
   workspaceId,
   file,

@@ -436,6 +436,11 @@
   background: #eef2ff;
 }
 
+.document-dialog-icon.is-danger {
+  color: #dc2626;
+  background: #fee2e2;
+}
+
 .document-dialog-close {
   align-self: start;
 }
@@ -469,6 +474,17 @@
       135deg,
       rgba(79, 70, 229, 0.08),
       rgba(45, 212, 191, 0.08)
+    ),
+    #ffffff;
+}
+
+.delete-document-card {
+  border-color: #fecaca;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(220, 38, 38, 0.08),
+      rgba(251, 146, 60, 0.08)
     ),
     #ffffff;
 }
