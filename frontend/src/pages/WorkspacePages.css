@@ -924,7 +924,7 @@
 
 .workspace-main {
   position: relative;
-  z-index: 1;
+  z-index: 40;
   grid-column: 2;
   min-width: 0;
 }
