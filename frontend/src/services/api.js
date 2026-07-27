@@ -136,6 +136,22 @@ export function getDocuments(workspaceId, token) {
   });
 }
 
+export function getDocumentPreview(
+  workspaceId,
+  documentId,
+  token
+) {
+  return request(
+    `/workspaces/${workspaceId}/documents/${documentId}/preview`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
 export function updateDocument(
   workspaceId,
   documentId,

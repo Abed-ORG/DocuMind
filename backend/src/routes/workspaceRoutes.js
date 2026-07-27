@@ -10,6 +10,7 @@ import {
 import {
   createDocument,
   deleteDocument,
+  getDocumentPreview,
   getDocuments,
   updateDocument,
 } from "../controllers/documentController.js";
@@ -70,6 +71,14 @@ router
     validateRequest,
     deleteDocument
   );
+
+router.get(
+  "/:id/documents/:documentId/preview",
+  workspaceIdValidator,
+  documentIdValidator,
+  validateRequest,
+  getDocumentPreview
+);
 
 router
   .route("/:id")

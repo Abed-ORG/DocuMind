@@ -50,8 +50,6 @@ export function mapApiDocument(document) {
     size: formatFileSize(document.fileSize),
     uploadedAt: formatUploadedAt(document.createdAt),
     status: document.status ?? "uploaded",
-    preview:
-      "Document uploaded successfully. Text extraction and preview generation will run in a later processing step.",
   };
 }
 

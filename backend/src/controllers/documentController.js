@@ -2,6 +2,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import mammoth from "mammoth";
+import { PDFParse } from "pdf-parse";
+
 import Document from "../models/Document.js";
 import Workspace from "../models/Workspace.js";
 import { cascadeDeleteDocumentData } from "../services/workspaceCascadeService.js";
@@ -14,6 +17,12 @@ const backendRootDirectory = path.resolve(
   currentDirectory,
   "../.."
 );
+
+const maxPreviewCharacters = 120000;
+const maxCsvPreviewBytes = 512 * 1024;
+const maxCsvPreviewRows = 50;
+const maxCsvPreviewColumns = 16;
+const maxCsvCellCharacters = 160;
 
 const extensionToFormat = {
   ".pdf": "PDF",
@@ -125,6 +134,406 @@ async function removeStoredDocumentFile(document) {
   );
 }
 
+function getAbsoluteDocumentPath(document) {
+  return path.resolve(
+    backendRootDirectory,
+    document.filePath
+  );
+}
+
+function normalizePreviewText(value) {
+  return String(value ?? "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim();
+}
+
+function limitPreviewText(value) {
+  const text = normalizePreviewText(value);
+
+  if (text.length <= maxPreviewCharacters) {
+    return {
+      text,
+      isTruncated: false,
+    };
+  }
+
+  return {
+    text: text.slice(0, maxPreviewCharacters).trimEnd(),
+    isTruncated: true,
+  };
+}
+
+function cleanCsvCell(value) {
+  const normalized = String(value ?? "")
+    .replace(/\uFEFF/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (normalized.length <= maxCsvCellCharacters) {
+    return normalized;
+  }
+
+  return `${normalized
+    .slice(0, maxCsvCellCharacters)
+    .trimEnd()}...`;
+}
+
+function parseCsvRows(text, rowLimit) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let isQuoted = false;
+
+  const source = String(text ?? "").replace(
+    /^\uFEFF/,
+    ""
+  );
+
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+
+    if (character === "\"") {
+      if (isQuoted && source[index + 1] === "\"") {
+        field += "\"";
+        index += 1;
+      } else {
+        isQuoted = !isQuoted;
+      }
+
+      continue;
+    }
+
+    if (character === "," && !isQuoted) {
+      row.push(field);
+      field = "";
+      continue;
+    }
+
+    if (
+      (character === "\n" || character === "\r") &&
+      !isQuoted
+    ) {
+      if (
+        character === "\r" &&
+        source[index + 1] === "\n"
+      ) {
+        index += 1;
+      }
+
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+
+      if (rows.length >= rowLimit) {
+        return rows;
+      }
+
+      continue;
+    }
+
+    field += character;
+  }
+
+  if (field || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+function isMissingCsvValue(value) {
+  return /^(na|n\/a|null|none)$/i.test(
+    cleanCsvCell(value)
+  );
+}
+
+function isNumericCsvValue(value) {
+  const cell = cleanCsvCell(value);
+
+  return (
+    /^[-+]?\d[\d,.]*%?$/.test(cell) ||
+    /^\d{1,4}[-/]\d{1,2}[-/]\d{1,4}$/.test(cell)
+  );
+}
+
+function isHeaderishCsvValue(value) {
+  const cell = cleanCsvCell(value);
+
+  return (
+    /^[A-Za-z_][A-Za-z0-9_ .-]{0,80}$/.test(cell) &&
+    !isMissingCsvValue(cell) &&
+    !isNumericCsvValue(cell)
+  );
+}
+
+function isLikelyCsvHeader(row, nextRow) {
+  const cells = row
+    .map(cleanCsvCell)
+    .filter(Boolean);
+
+  if (cells.length === 0 || !nextRow) {
+    return false;
+  }
+
+  const headerishCount = cells.filter(
+    isHeaderishCsvValue
+  ).length;
+  const dataLikeCount = cells.filter(
+    (cell) =>
+      isMissingCsvValue(cell) ||
+      isNumericCsvValue(cell) ||
+      cell.includes("://")
+  ).length;
+
+  return (
+    headerishCount / cells.length >= 0.55 &&
+    dataLikeCount / cells.length <= 0.35
+  );
+}
+
+function createCsvPreviewTable({
+  text,
+  fileSize,
+  bytesRead,
+}) {
+  const parsedRows = parseCsvRows(
+    text,
+    maxCsvPreviewRows + 1
+  ).filter((row) =>
+    row.some((cell) => cleanCsvCell(cell))
+  );
+
+  if (parsedRows.length === 0) {
+    return {
+      type: "table",
+      columns: [],
+      rows: [],
+      isTruncated: fileSize > bytesRead,
+    };
+  }
+
+  const headerRow = parsedRows[0];
+  const hasHeader = isLikelyCsvHeader(
+    headerRow,
+    parsedRows[1]
+  );
+  const bodyRows = hasHeader
+    ? parsedRows.slice(1)
+    : parsedRows;
+  const visibleRows = bodyRows.slice(
+    0,
+    maxCsvPreviewRows
+  );
+  const columnSourceRows = [
+    headerRow,
+    ...visibleRows,
+  ];
+  const columnCount = Math.max(
+    headerRow.length,
+    ...columnSourceRows.map((row) => row.length)
+  );
+  const visibleColumnCount = Math.min(
+    columnCount,
+    maxCsvPreviewColumns
+  );
+  const columns = Array.from(
+    {
+      length: visibleColumnCount,
+    },
+    (_, index) =>
+      (hasHeader && cleanCsvCell(headerRow[index])) ||
+      `Column ${index + 1}`
+  );
+
+  const rows = visibleRows.map((row, rowIndex) => ({
+    rowNumber: hasHeader ? rowIndex + 2 : rowIndex + 1,
+    cells: columns.map((_, columnIndex) =>
+      cleanCsvCell(row[columnIndex])
+    ),
+  }));
+
+  return {
+    type: "table",
+    columns,
+    rows,
+    hasHeader,
+    isTruncated:
+      fileSize > bytesRead ||
+      parsedRows.length > maxCsvPreviewRows ||
+      columnCount > maxCsvPreviewColumns,
+    totalColumnsPreviewed: visibleColumnCount,
+    maxRows: maxCsvPreviewRows,
+    maxColumns: maxCsvPreviewColumns,
+  };
+}
+
+function createPreviewPages(
+  pages,
+  fallbackText = ""
+) {
+  const normalizedPages = [];
+  let remainingCharacters = maxPreviewCharacters;
+
+  for (const [index, page] of pages.entries()) {
+    if (remainingCharacters <= 0) {
+      break;
+    }
+
+    const text = normalizePreviewText(page.text);
+
+    if (!text) {
+      continue;
+    }
+
+    const isTruncated =
+      text.length > remainingCharacters;
+    const previewText = isTruncated
+      ? text.slice(0, remainingCharacters).trimEnd()
+      : text;
+
+    normalizedPages.push({
+      pageNumber: page.pageNumber ?? index + 1,
+      text: previewText,
+      isTruncated,
+    });
+
+    remainingCharacters -= previewText.length;
+
+    if (isTruncated) {
+      break;
+    }
+  }
+
+  if (normalizedPages.length > 0) {
+    return normalizedPages;
+  }
+
+  const {
+    text,
+    isTruncated,
+  } = limitPreviewText(fallbackText);
+
+  return [
+    {
+      pageNumber: 1,
+      text:
+        text ||
+        "No extracted text is available for this document yet.",
+      isTruncated,
+    },
+  ];
+}
+
+async function extractPdfPreview(filePath) {
+  const data = await fs.readFile(filePath);
+  const parser = new PDFParse({
+    data,
+  });
+
+  try {
+    const result = await parser.getText();
+
+    return createPreviewPages(
+      result.pages.map((page) => ({
+        pageNumber: page.num,
+        text: page.text,
+      })),
+      result.text
+    );
+  } finally {
+    await parser.destroy();
+  }
+}
+
+async function extractDocxPreview(filePath) {
+  const result = await mammoth.extractRawText({
+    path: filePath,
+  });
+
+  return createPreviewPages([], result.value);
+}
+
+async function extractPlainTextPreview(filePath) {
+  const text = await fs.readFile(filePath, "utf8");
+
+  return createPreviewPages([], text);
+}
+
+async function extractCsvPreview(filePath) {
+  const {
+    size,
+  } = await fs.stat(filePath);
+  const fileHandle = await fs.open(filePath, "r");
+  const buffer = Buffer.alloc(
+    Math.min(size, maxCsvPreviewBytes)
+  );
+
+  try {
+    const {
+      bytesRead,
+    } = await fileHandle.read(
+      buffer,
+      0,
+      buffer.length,
+      0
+    );
+
+    return createCsvPreviewTable({
+      text: buffer
+        .subarray(0, bytesRead)
+        .toString("utf8"),
+      fileSize: size,
+      bytesRead,
+    });
+  } finally {
+    await fileHandle.close();
+  }
+}
+
+async function extractDocumentPreview(document) {
+  const filePath = getAbsoluteDocumentPath(document);
+
+  if (document.format === "PDF") {
+    return {
+      type: "text",
+      pages: await extractPdfPreview(filePath),
+    };
+  }
+
+  if (document.format === "DOCX") {
+    return {
+      type: "text",
+      pages: await extractDocxPreview(filePath),
+    };
+  }
+
+  if (document.format === "CSV") {
+    return {
+      type: "table",
+      table: await extractCsvPreview(filePath),
+      pages: [],
+    };
+  }
+
+  return {
+    type: "text",
+    pages: await extractPlainTextPreview(filePath),
+  };
+}
+
+async function findDocumentInWorkspace({
+  workspaceId,
+  documentId,
+}) {
+  return Document.findOne({
+    _id: documentId,
+    workspaceId,
+  });
+}
+
 export async function getDocuments(req, res, next) {
   try {
     const workspace =
@@ -151,6 +560,58 @@ export async function getDocuments(req, res, next) {
       documents: documents.map(formatDocument),
     });
   } catch (error) {
+    next(error);
+  }
+}
+
+export async function getDocumentPreview(req, res, next) {
+  try {
+    const workspace =
+      await findWorkspaceForUser({
+        workspaceId: req.params.id,
+        userId: req.user._id,
+      });
+
+    if (!workspace) {
+      return res.status(404).json({
+        success: false,
+        message: "Workspace not found.",
+      });
+    }
+
+    const document =
+      await findDocumentInWorkspace({
+        workspaceId: workspace._id,
+        documentId: req.params.documentId,
+      });
+
+    if (!document) {
+      return res.status(404).json({
+        success: false,
+        message: "Document not found.",
+      });
+    }
+
+    const previewData =
+      await extractDocumentPreview(document);
+
+    return res.status(200).json({
+      success: true,
+      preview: {
+        document: formatDocument(document),
+        ...previewData,
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return res.status(404).json({
+        success: false,
+        message:
+          "The stored document file could not be found.",
+      });
+    }
+
     next(error);
   }
 }

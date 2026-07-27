@@ -9,6 +9,7 @@ import { useParams } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 import {
   deleteDocument as deleteDocumentRequest,
+  getDocumentPreview,
   getDocuments,
   updateDocument as updateDocumentRequest,
   uploadDocument,
@@ -99,6 +100,15 @@ function DocumentsTab() {
 
   const [previewDocument, setPreviewDocument] =
     useState(null);
+
+  const [previewState, setPreviewState] =
+    useState({
+      type: "text",
+      isLoading: false,
+      error: "",
+      pages: [],
+      table: null,
+    });
 
   const [summaryState, setSummaryState] =
     useState(null);
@@ -221,6 +231,8 @@ function DocumentsTab() {
     };
   }, [documents, comparison]);
 
+  const previewDocumentId = previewDocument?.id ?? "";
+
   useEffect(() => {
     let isMounted = true;
 
@@ -283,6 +295,71 @@ function DocumentsTab() {
       isMounted = false;
     };
   }, [workspaceId, token, documentsReloadKey]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadDocumentPreview() {
+      if (!previewDocumentId || !workspaceId || !token) {
+        setPreviewState({
+          type: "text",
+          isLoading: false,
+          error: "",
+          pages: [],
+          table: null,
+        });
+        return;
+      }
+
+      setPreviewState({
+        type: "text",
+        isLoading: true,
+        error: "",
+        pages: [],
+        table: null,
+      });
+
+      try {
+        const response = await getDocumentPreview(
+          workspaceId,
+          previewDocumentId,
+          token
+        );
+
+        if (isActive) {
+          setPreviewState({
+            type: response.preview?.type ?? "text",
+            isLoading: false,
+            error: "",
+            pages: Array.isArray(
+              response.preview?.pages
+            )
+              ? response.preview.pages
+              : [],
+            table: response.preview?.table ?? null,
+          });
+        }
+      } catch (error) {
+        if (isActive) {
+          setPreviewState({
+            type: "text",
+            isLoading: false,
+            error:
+              error.message ||
+              "Unable to load document preview.",
+            pages: [],
+            table: null,
+          });
+        }
+      }
+    }
+
+    loadDocumentPreview();
+
+    return () => {
+      isActive = false;
+    };
+  }, [previewDocumentId, workspaceId, token]);
 
   useEffect(() => {
     if (!summaryState?.isLoading) {
@@ -943,6 +1020,11 @@ function DocumentsTab() {
 
       <PreviewPanel
         document={previewDocument}
+        error={previewState.error}
+        isLoading={previewState.isLoading}
+        pages={previewState.pages}
+        previewType={previewState.type}
+        table={previewState.table}
         onClose={() => setPreviewDocument(null)}
       />
     </div>

@@ -110,12 +110,17 @@ function DocumentTable({
                 return (
                   <tr key={document.id}>
                     <td>
-                      <div className="document-name-cell">
+                      <button
+                        className="document-name-button"
+                        type="button"
+                        onClick={() => onOpenPreview(document)}
+                        aria-label={`Preview ${document.name}`}
+                      >
                         <span className="file-icon">
                           <FormatIcon size={18} />
                         </span>
                         <strong>{document.name}</strong>
-                      </div>
+                      </button>
                     </td>
                     <td>
                       <span className="badge neutral">
