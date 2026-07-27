@@ -15,7 +15,7 @@ const uploadDirectory = path.resolve(
 );
 
 const maxDocumentFileSize =
-  100 * 1024 * 1024;
+  10 * 1024 * 1024;
 
 const allowedExtensions = new Set([
   ".pdf",
@@ -113,7 +113,7 @@ export function uploadDocumentFile(req, res, next) {
     if (error instanceof multer.MulterError) {
       const uploadError = createUploadError(
         error.code === "LIMIT_FILE_SIZE"
-          ? "Document file cannot exceed 100MB."
+          ? "Document file cannot exceed 10MB."
           : "Unable to upload document file."
       );
 

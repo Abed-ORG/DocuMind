@@ -40,8 +40,9 @@ function DuplicateDocumentDialog({
         </header>
 
         <p className="document-dialog-copy">
-          A document named <strong>{duplicate.fileName}</strong> is already in
-          this workspace. Add this upload as a separate copy or skip it.
+          A document named <strong>{duplicate.fileName}</strong> with the same
+          file contents is already in this workspace. Add this upload as a
+          separate copy or skip it.
         </p>
 
         <div className="duplicate-name-card">

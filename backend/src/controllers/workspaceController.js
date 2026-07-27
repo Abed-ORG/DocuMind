@@ -1,4 +1,5 @@
 import Document from "../models/Document.js";
+import User from "../models/User.js";
 import Workspace from "../models/Workspace.js";
 import { cascadeDeleteWorkspaceData } from "../services/workspaceCascadeService.js";
 
@@ -55,6 +56,56 @@ async function getDocumentStatsByWorkspace(
         pageCount: item.pageCount ?? 0,
       },
     ])
+  );
+}
+
+async function getWorkspaceStorageUsedBytes(
+  workspaceId
+) {
+  const [storageStats] = await Document.aggregate([
+    {
+      $match: {
+        workspaceId,
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        storageUsedBytes: {
+          $sum: "$fileSize",
+        },
+      },
+    },
+  ]);
+
+  return storageStats?.storageUsedBytes ?? 0;
+}
+
+async function decrementUserStorage({
+  userId,
+  bytes,
+}) {
+  await User.updateOne(
+    {
+      _id: userId,
+    },
+    {
+      $inc: {
+        storageUsedBytes: -bytes,
+      },
+    }
+  );
+
+  await User.updateOne(
+    {
+      _id: userId,
+      storageUsedBytes: {
+        $lt: 0,
+      },
+    },
+    {
+      storageUsedBytes: 0,
+    }
   );
 }
 
@@ -300,6 +351,11 @@ export async function deleteWorkspace(req, res, next) {
       });
     }
 
+    const storageUsedBytes =
+      await getWorkspaceStorageUsedBytes(
+        workspace._id
+      );
+
     const deletedRelatedData =
       await cascadeDeleteWorkspaceData({
         workspaceId: workspace._id,
@@ -309,6 +365,18 @@ export async function deleteWorkspace(req, res, next) {
       _id: workspace._id,
       userId: req.user._id,
     });
+
+    try {
+      await decrementUserStorage({
+        userId: req.user._id,
+        bytes: storageUsedBytes,
+      });
+    } catch (error) {
+      console.error(
+        "Failed to decrement user storage:",
+        error
+      );
+    }
 
     return res.status(200).json({
       success: true,

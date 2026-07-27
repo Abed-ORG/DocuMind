@@ -125,6 +125,19 @@ export function AuthProvider({
     return response;
   }
 
+  async function refreshCurrentUser() {
+    if (!token) {
+      return null;
+    }
+
+    const response =
+      await getCurrentUser(token);
+
+    setUser(response.user);
+
+    return response.user;
+  }
+
   async function logout() {
     setIsLoggingOut(true);
 
@@ -148,6 +161,7 @@ export function AuthProvider({
     register,
     login,
     logout,
+    refreshCurrentUser,
   };
 
   return (

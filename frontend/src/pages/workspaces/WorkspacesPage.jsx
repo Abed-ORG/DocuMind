@@ -28,6 +28,7 @@ function WorkspacesPage() {
   const {
     token,
     user,
+    refreshCurrentUser,
   } = useAuth();
 
   const [workspaces, setWorkspaces] =
@@ -252,6 +253,13 @@ function WorkspacesPage() {
             currentWorkspace.id !== workspace.id
         )
       );
+
+      refreshCurrentUser().catch((error) => {
+        console.error(
+          "User storage refresh failed:",
+          error
+        );
+      });
 
       setDeleteState(null);
     } catch (error) {

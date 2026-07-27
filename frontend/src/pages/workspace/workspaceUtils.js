@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 
 import {
+  maxUploadSizeLabel,
   maxUploadSizeBytes,
   navItems,
   supportedUploadExtensions,
@@ -48,6 +49,7 @@ export function mapApiDocument(document) {
     format: document.format,
     pages: document.pageCount ?? 0,
     size: formatFileSize(document.fileSize),
+    contentHash: document.contentHash,
     uploadedAt: formatUploadedAt(document.createdAt),
     status: document.status ?? "uploaded",
   };
@@ -77,7 +79,7 @@ export function validateUploadFile(file) {
   }
 
   if (file.size > maxUploadSizeBytes) {
-    return `${file.name} is larger than 100MB.`;
+    return `${file.name} is larger than ${maxUploadSizeLabel}.`;
   }
 
   return "";
@@ -98,6 +100,40 @@ export function documentNameExists(
     (existingName) =>
       normalizeDocumentName(existingName) ===
       normalizedName
+  );
+}
+
+export async function getFileHash(file) {
+  const buffer = await file.arrayBuffer();
+  const digest = await globalThis.crypto.subtle.digest(
+    "SHA-256",
+    buffer
+  );
+
+  return Array.from(new Uint8Array(digest))
+    .map((byte) =>
+      byte.toString(16).padStart(2, "0")
+    )
+    .join("");
+}
+
+export function documentContentDuplicateExists({
+  name,
+  contentHash,
+  documents,
+  plannedDocuments = [],
+}) {
+  const normalizedName =
+    normalizeDocumentName(name);
+
+  return [
+    ...documents,
+    ...plannedDocuments,
+  ].some(
+    (document) =>
+      normalizeDocumentName(document.name) ===
+        normalizedName &&
+      document.contentHash === contentHash
   );
 }
 

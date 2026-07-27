@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
+import { getStorageUsage } from "../utils/storageUsage";
 import "./Header.css";
 
 function getInitials(user) {
@@ -37,6 +38,7 @@ function Header() {
 
   const isWorkspaceRoute =
     location.pathname.startsWith("/workspace/");
+  const storageUsage = getStorageUsage(user);
 
   if (isWorkspaceRoute) {
     return null;
@@ -108,10 +110,14 @@ function Header() {
                       <div className="storage-usage">
                         <div className="storage-copy">
                           <span>Storage</span>
-                          <strong>45MB / 100MB</strong>
+                          <strong>{storageUsage.label}</strong>
                         </div>
                         <div className="storage-track">
-                          <span style={{ width: "45%" }} />
+                          <span
+                            style={{
+                              width: `${storageUsage.percent}%`,
+                            }}
+                          />
                         </div>
                       </div>
 

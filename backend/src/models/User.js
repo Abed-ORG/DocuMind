@@ -30,6 +30,12 @@ const userSchema = new mongoose.Schema(
       minlength: [8, "Password must contain at least 8 characters."],
       select: false,
     },
+
+    storageUsedBytes: {
+      type: Number,
+      default: 0,
+      min: [0, "Storage used cannot be negative."],
+    },
   },
   {
     timestamps: true,

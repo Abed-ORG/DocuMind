@@ -1,11 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 
 import Document from "../models/Document.js";
+import User from "../models/User.js";
 import Workspace from "../models/Workspace.js";
 import { cascadeDeleteDocumentData } from "../services/workspaceCascadeService.js";
 
@@ -40,6 +42,7 @@ function formatDocument(document) {
     format: document.format,
     pageCount: document.pageCount,
     fileSize: document.fileSize,
+    contentHash: document.contentHash,
     status: document.status,
     filePath: document.filePath,
     createdAt: document.createdAt,
@@ -107,11 +110,37 @@ async function documentNameExists({
   return Boolean(existingDocument);
 }
 
+async function documentContentDuplicateExists({
+  workspaceId,
+  originalName,
+  contentHash,
+}) {
+  const existingDocument =
+    await Document.findOne({
+      workspaceId,
+      originalName,
+      contentHash,
+    }).collation({
+      locale: "en",
+      strength: 2,
+    });
+
+  return Boolean(existingDocument);
+}
+
 function sendDuplicateDocumentNameResponse(res) {
   return res.status(409).json({
     success: false,
     message:
       "A document with this name already exists in this workspace.",
+  });
+}
+
+function sendDuplicateDocumentContentResponse(res) {
+  return res.status(409).json({
+    success: false,
+    message:
+      "This exact file already exists in this workspace.",
   });
 }
 
@@ -131,6 +160,107 @@ async function removeStoredDocumentFile(document) {
       backendRootDirectory,
       document.filePath
     )
+  );
+}
+
+async function calculateFileHash(filePath) {
+  const fileBuffer = await fs.readFile(filePath);
+
+  return createHash("sha256")
+    .update(fileBuffer)
+    .digest("hex");
+}
+
+async function backfillMissingHashesForName({
+  workspaceId,
+  originalName,
+}) {
+  const documents = await Document.find({
+    workspaceId,
+    originalName,
+    $or: [
+      {
+        contentHash: {
+          $exists: false,
+        },
+      },
+      {
+        contentHash: null,
+      },
+      {
+        contentHash: "",
+      },
+    ],
+  }).collation({
+    locale: "en",
+    strength: 2,
+  });
+
+  await Promise.all(
+    documents.map(async (document) => {
+      try {
+        const contentHash = await calculateFileHash(
+          getAbsoluteDocumentPath(document)
+        );
+
+        await Document.updateOne(
+          {
+            _id: document._id,
+          },
+          {
+            contentHash,
+          }
+        );
+      } catch (error) {
+        if (error.code !== "ENOENT") {
+          throw error;
+        }
+      }
+    })
+  );
+}
+
+async function incrementUserStorage({
+  userId,
+  bytes,
+}) {
+  await User.updateOne(
+    {
+      _id: userId,
+    },
+    {
+      $inc: {
+        storageUsedBytes: bytes,
+      },
+    }
+  );
+}
+
+async function decrementUserStorage({
+  userId,
+  bytes,
+}) {
+  await User.updateOne(
+    {
+      _id: userId,
+    },
+    {
+      $inc: {
+        storageUsedBytes: -bytes,
+      },
+    }
+  );
+
+  await User.updateOne(
+    {
+      _id: userId,
+      storageUsedBytes: {
+        $lt: 0,
+      },
+    },
+    {
+      storageUsedBytes: 0,
+    }
   );
 }
 
@@ -666,16 +796,26 @@ export async function createDocument(req, res, next) {
       });
     }
 
-    const duplicateName =
-      await documentNameExists({
+    const contentHash = await calculateFileHash(
+      req.file.path
+    );
+
+    await backfillMissingHashesForName({
+      workspaceId: workspace._id,
+      originalName,
+    });
+
+    const duplicateContent =
+      await documentContentDuplicateExists({
         workspaceId: workspace._id,
         originalName,
+        contentHash,
       });
 
-    if (duplicateName) {
+    if (duplicateContent) {
       await removeUploadedFile(req.file.path);
 
-      return sendDuplicateDocumentNameResponse(res);
+      return sendDuplicateDocumentContentResponse(res);
     }
 
     const document = await Document.create({
@@ -685,11 +825,24 @@ export async function createDocument(req, res, next) {
       format,
       pageCount: 0,
       fileSize: req.file.size,
+      contentHash,
       status: "uploaded",
       filePath: getStoredFilePath(
         req.file.filename
       ),
     });
+
+    try {
+      await incrementUserStorage({
+        userId: req.user._id,
+        bytes: req.file.size,
+      });
+    } catch (error) {
+      console.error(
+        "Failed to increment user storage:",
+        error
+      );
+    }
 
     return res.status(201).json({
       success: true,
@@ -805,6 +958,18 @@ export async function deleteDocument(req, res, next) {
       _id: document._id,
       workspaceId: workspace._id,
     });
+
+    try {
+      await decrementUserStorage({
+        userId: req.user._id,
+        bytes: document.fileSize,
+      });
+    } catch (error) {
+      console.error(
+        "Failed to decrement user storage:",
+        error
+      );
+    }
 
     return res.status(200).json({
       success: true,

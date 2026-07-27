@@ -29,9 +29,10 @@ import {
 } from "./workspaceData";
 import {
   createUploadId,
-  documentNameExists,
+  documentContentDuplicateExists,
   formatFileSize,
   getDuplicateDocumentName,
+  getFileHash,
   mapApiDocument,
   validateUploadFile,
 } from "./workspaceUtils";
@@ -42,7 +43,10 @@ const defaultComparisonTopic =
 
 function DocumentsTab() {
   const { workspaceId } = useParams();
-  const { token } = useAuth();
+  const {
+    token,
+    refreshCurrentUser,
+  } = useAuth();
 
   const [documents, setDocuments] =
     useState([]);
@@ -593,6 +597,12 @@ function DocumentsTab() {
           ? null
           : current
       );
+      refreshCurrentUser().catch((error) => {
+        console.error(
+          "User storage refresh failed:",
+          error
+        );
+      });
       closeDeleteDialog();
     } catch (error) {
       setDeleteDialogError(
@@ -660,20 +670,34 @@ function DocumentsTab() {
     const plannedDocumentNames = documents.map(
       (document) => document.name
     );
+    const plannedDocuments = [];
 
     const uploadItems = [];
 
     for (const file of files) {
       const error = validateUploadFile(file);
       let displayName = file.name;
+      let contentHash = "";
       let isSkipped = false;
       let message = error;
 
       if (!error) {
-        const isDuplicate = documentNameExists(
-          file.name,
-          plannedDocumentNames
-        );
+        try {
+          contentHash = await getFileHash(file);
+        } catch {
+          message =
+            "Unable to inspect file contents for duplicate detection.";
+        }
+      }
+
+      if (!message) {
+        const isDuplicate =
+          documentContentDuplicateExists({
+            name: file.name,
+            contentHash,
+            documents,
+            plannedDocuments,
+          });
 
         if (isDuplicate) {
           const duplicateName =
@@ -691,12 +715,20 @@ function DocumentsTab() {
           if (shouldUploadDuplicate) {
             displayName = duplicateName;
             plannedDocumentNames.push(displayName);
+            plannedDocuments.push({
+              name: displayName,
+              contentHash,
+            });
           } else {
             isSkipped = true;
             message = `${file.name} was skipped because it already exists.`;
           }
         } else {
           plannedDocumentNames.push(displayName);
+          plannedDocuments.push({
+            name: displayName,
+            contentHash,
+          });
         }
       }
 
@@ -779,6 +811,12 @@ function DocumentsTab() {
           mapApiDocument(response.document),
           ...current,
         ]);
+        refreshCurrentUser().catch((error) => {
+          console.error(
+            "User storage refresh failed:",
+            error
+          );
+        });
       } catch (error) {
         const message =
           error.message ||

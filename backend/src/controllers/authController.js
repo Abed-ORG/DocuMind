@@ -1,8 +1,12 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
+import Document from "../models/Document.js";
 import User from "../models/User.js";
+import Workspace from "../models/Workspace.js";
 import { env } from "../config/env.js";
+
+const storageLimitBytes = 100 * 1024 * 1024;
 
 function generateToken(userId) {
   return jwt.sign(
@@ -16,12 +20,67 @@ function generateToken(userId) {
   );
 }
 
-function formatUser(user) {
+async function calculateStorageUsedBytes(userId) {
+  const workspaceIds = await Workspace.find({
+    userId,
+  }).distinct("_id");
+
+  if (workspaceIds.length === 0) {
+    return 0;
+  }
+
+  const [storageStats] = await Document.aggregate([
+    {
+      $match: {
+        workspaceId: {
+          $in: workspaceIds,
+        },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        storageUsedBytes: {
+          $sum: "$fileSize",
+        },
+      },
+    },
+  ]);
+
+  return storageStats?.storageUsedBytes ?? 0;
+}
+
+async function getUserStorageUsedBytes(user) {
+  const storageUsedBytes =
+    await calculateStorageUsedBytes(user._id);
+
+  if (
+    user.storageUsedBytes !== storageUsedBytes
+  ) {
+    await User.updateOne(
+      {
+        _id: user._id,
+      },
+      {
+        storageUsedBytes,
+      }
+    );
+  }
+
+  return storageUsedBytes;
+}
+
+async function formatUser(user) {
+  const storageUsedBytes =
+    await getUserStorageUsedBytes(user);
+
   return {
     id: user._id,
     firstName: user.firstName,
     lastName: user.lastName,
     email: user.email,
+    storageUsedBytes,
+    storageLimitBytes,
     createdAt: user.createdAt,
   };
 }
@@ -58,7 +117,7 @@ export async function register(req, res, next) {
       success: true,
       message: "Account created successfully.",
       token,
-      user: formatUser(user),
+      user: await formatUser(user),
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -105,22 +164,22 @@ export async function login(req, res, next) {
       success: true,
       message: "Login successful.",
       token,
-      user: formatUser(user),
+      user: await formatUser(user),
     });
   } catch (error) {
     next(error);
   }
 }
 
-export function getCurrentUser(req, res) {
-  return res.status(200).json({
-    success: true,
-    user: {
-      id: req.user._id,
-      firstName: req.user.firstName,
-      lastName: req.user.lastName,
-      email: req.user.email,
-      createdAt: req.user.createdAt,
-    },
-  });
+export async function getCurrentUser(req, res, next) {
+  try {
+    const user = await formatUser(req.user);
+
+    return res.status(200).json({
+      success: true,
+      user,
+    });
+  } catch (error) {
+    next(error);
+  }
 }

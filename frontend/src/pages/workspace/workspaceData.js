@@ -40,7 +40,9 @@ export const supportedUploadExtensions = new Set([
 ]);
 
 export const maxUploadSizeBytes =
-  100 * 1024 * 1024;
+  10 * 1024 * 1024;
+
+export const maxUploadSizeLabel = "10MB";
 
 export const summaryLevels = [
   {

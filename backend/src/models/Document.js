@@ -47,6 +47,17 @@ const documentSchema = new mongoose.Schema(
       min: [0, "File size cannot be negative."],
     },
 
+    contentHash: {
+      type: String,
+      required: [true, "Content hash is required."],
+      lowercase: true,
+      trim: true,
+      match: [
+        /^[a-f0-9]{64}$/,
+        "Content hash must be a SHA-256 hash.",
+      ],
+    },
+
     status: {
       type: String,
       enum: {
@@ -76,6 +87,12 @@ const documentSchema = new mongoose.Schema(
 documentSchema.index({
   workspaceId: 1,
   createdAt: -1,
+});
+
+documentSchema.index({
+  workspaceId: 1,
+  originalName: 1,
+  contentHash: 1,
 });
 
 const Document = mongoose.model(

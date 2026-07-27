@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 
 import { getInitials } from "../workspaceUtils";
+import { getStorageUsage } from "../../../utils/storageUsage";
 
 function WorkspaceSidebarProfile({
   user,
@@ -16,6 +17,8 @@ function WorkspaceSidebarProfile({
   onLogout,
   isLoggingOut,
 }) {
+  const storageUsage = getStorageUsage(user);
+
   return (
     <div className="workspace-sidebar-profile">
       <button
@@ -49,10 +52,14 @@ function WorkspaceSidebarProfile({
           <div className="storage-usage">
             <div className="storage-copy">
               <span>Storage</span>
-              <strong>45MB / 100MB</strong>
+              <strong>{storageUsage.label}</strong>
             </div>
             <div className="storage-track">
-              <span style={{ width: "45%" }} />
+              <span
+                style={{
+                  width: `${storageUsage.percent}%`,
+                }}
+              />
             </div>
           </div>
 
