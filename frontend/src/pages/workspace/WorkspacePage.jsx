@@ -10,6 +10,7 @@ import {
   useParams,
 } from "react-router";
 import {
+  ArrowLeft,
   FileSearch,
   Menu,
 } from "lucide-react";
@@ -147,9 +148,23 @@ function WorkspacePage() {
         </Link>
 
         <div className="sidebar-workspace-title">
-          <span style={{ background: workspaceColor }} />
-          <Link to="/dashboard">
-            {workspaceName}
+          <span
+            className="sidebar-workspace-dot"
+            style={{ background: workspaceColor }}
+          />
+          <Link
+            to="/dashboard"
+            aria-label="Return to dashboard"
+          >
+            <span className="workspace-title-default">
+              {workspaceName}
+            </span>
+            <span className="workspace-title-return">
+              <span className="workspace-return-icon">
+                <ArrowLeft size={15} />
+              </span>
+              <span>Return to dashboard</span>
+            </span>
           </Link>
         </div>
 

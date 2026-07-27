@@ -1,8 +1,15 @@
 import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
   AlertCircle,
   Eye,
   GitCompareArrows,
   Loader2,
+  Menu,
   Search,
   Trash2,
   UploadCloud,
@@ -11,6 +18,199 @@ import {
 import documindHero from "../../../assets/documind-hero.png";
 import { statusLabels } from "../workspaceData";
 import { getFormatIcon } from "../workspaceUtils";
+
+function DocumentActionsMenu({
+  document,
+  onOpenSummary,
+  onOpenPreview,
+  onRenameDocument,
+  onOpenExtraction,
+  onDeleteDocument,
+}) {
+  const [isOpen, setIsOpen] =
+    useState(false);
+  const [menuPosition, setMenuPosition] =
+    useState({ top: 0, left: 0 });
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
+
+  const updateMenuPosition = useCallback(() => {
+    if (!buttonRef.current) {
+      return;
+    }
+
+    const buttonRect =
+      buttonRef.current.getBoundingClientRect();
+    const viewportPadding = 12;
+    const menuWidth = 168;
+    const estimatedMenuHeight = 206;
+    const gap = 8;
+
+    const left = Math.min(
+      window.innerWidth - menuWidth - viewportPadding,
+      Math.max(
+        viewportPadding,
+        buttonRect.right - menuWidth
+      )
+    );
+
+    const preferredTop = buttonRect.bottom + gap;
+    const top =
+      preferredTop + estimatedMenuHeight >
+      window.innerHeight - viewportPadding
+        ? Math.max(
+            viewportPadding,
+            buttonRect.top - estimatedMenuHeight - gap
+          )
+        : preferredTop;
+
+    setMenuPosition({ top, left });
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    updateMenuPosition();
+
+    function handleDocumentClick(event) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target)
+      ) {
+        setIsOpen(false);
+      }
+    }
+
+    function handleViewportChange() {
+      setIsOpen(false);
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    window.document.addEventListener(
+      "mousedown",
+      handleDocumentClick
+    );
+    window.document.addEventListener(
+      "keydown",
+      handleKeyDown
+    );
+    window.addEventListener(
+      "scroll",
+      handleViewportChange,
+      true
+    );
+    window.addEventListener(
+      "resize",
+      handleViewportChange
+    );
+
+    return () => {
+      window.document.removeEventListener(
+        "mousedown",
+        handleDocumentClick
+      );
+      window.document.removeEventListener(
+        "keydown",
+        handleKeyDown
+      );
+      window.removeEventListener(
+        "scroll",
+        handleViewportChange,
+        true
+      );
+      window.removeEventListener(
+        "resize",
+        handleViewportChange
+      );
+    };
+  }, [isOpen, updateMenuPosition]);
+
+  function runAction(action) {
+    action(document);
+    setIsOpen(false);
+  }
+
+  function toggleMenu() {
+    if (!isOpen) {
+      updateMenuPosition();
+    }
+
+    setIsOpen((current) => !current);
+  }
+
+  return (
+    <div
+      className="document-actions-menu-wrap"
+      ref={menuRef}
+    >
+      <button
+        ref={buttonRef}
+        className="document-actions-toggle"
+        type="button"
+        aria-label={`Open actions for ${document.name}`}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        onClick={toggleMenu}
+      >
+        <Menu size={17} />
+      </button>
+
+      {isOpen && (
+        <div
+          className="document-actions-menu"
+          role="menu"
+          style={menuPosition}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => runAction(onOpenSummary)}
+          >
+            Summarize
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => runAction(onOpenPreview)}
+          >
+            <Eye size={15} />
+            Preview
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => runAction(onRenameDocument)}
+          >
+            Rename
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => runAction(onOpenExtraction)}
+          >
+            Extract
+          </button>
+          <button
+            className="danger-action"
+            type="button"
+            role="menuitem"
+            onClick={() => runAction(onDeleteDocument)}
+          >
+            <Trash2 size={15} />
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function DocumentTable({
   filteredDocuments,
@@ -137,42 +337,15 @@ function DocumentTable({
                         {statusLabels[document.status]}
                       </span>
                     </td>
-                    <td>
-                      <div className="table-actions">
-                        <button
-                          type="button"
-                          onClick={() => onOpenSummary(document)}
-                        >
-                          Summarize
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onOpenPreview(document)}
-                        >
-                          <Eye size={15} />
-                          Preview
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onRenameDocument(document)}
-                        >
-                          Rename
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onOpenExtraction(document)}
-                        >
-                          Extract
-                        </button>
-                        <button
-                          className="danger-action"
-                          type="button"
-                          onClick={() => onDeleteDocument(document)}
-                        >
-                          <Trash2 size={15} />
-                          Delete
-                        </button>
-                      </div>
+                    <td className="document-actions-cell">
+                      <DocumentActionsMenu
+                        document={document}
+                        onOpenSummary={onOpenSummary}
+                        onOpenPreview={onOpenPreview}
+                        onRenameDocument={onRenameDocument}
+                        onOpenExtraction={onOpenExtraction}
+                        onDeleteDocument={onDeleteDocument}
+                      />
                     </td>
                   </tr>
                 );

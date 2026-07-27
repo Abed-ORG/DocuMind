@@ -6,6 +6,10 @@ function WorkflowSection() {
       id="how-it-works"
       className="landing-section workflow-section"
     >
+      <div className="workflow-background" aria-hidden="true">
+        <span className="workflow-document workflow-document-1" />
+        <span className="workflow-document workflow-document-2" />
+      </div>
       <div className="landing-container">
         <div className="section-heading">
           <p className="landing-eyebrow">How It Works</p>
