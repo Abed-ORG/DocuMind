@@ -171,6 +171,7 @@ function DocumentsTab() {
       return 0;
     });
 
+    
     return rows;
   }, [sortConfig]);
 
