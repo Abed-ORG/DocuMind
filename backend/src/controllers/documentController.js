@@ -9,6 +9,7 @@ import { PDFParse } from "pdf-parse";
 import Document from "../models/Document.js";
 import User from "../models/User.js";
 import Workspace from "../models/Workspace.js";
+import { replaceDocumentChunks } from "../services/chunkingService.js";
 import { cascadeDeleteDocumentData } from "../services/workspaceCascadeService.js";
 
 const currentDirectory = path.dirname(
@@ -557,6 +558,35 @@ function createPreviewPages(
   ];
 }
 
+function createExtractedPages(
+  pages,
+  fallbackText = ""
+) {
+  const normalizedPages = pages
+    .map((page, index) => ({
+      pageNumber: page.pageNumber ?? index + 1,
+      text: normalizePreviewText(page.text),
+    }))
+    .filter((page) => page.text.length > 0);
+
+  if (normalizedPages.length > 0) {
+    return normalizedPages;
+  }
+
+  const text = normalizePreviewText(fallbackText);
+
+  if (!text) {
+    return [];
+  }
+
+  return [
+    {
+      pageNumber: 1,
+      text,
+    },
+  ];
+}
+
 async function extractPdfPreview(filePath) {
   const data = await fs.readFile(filePath);
   const parser = new PDFParse({
@@ -578,6 +608,27 @@ async function extractPdfPreview(filePath) {
   }
 }
 
+async function extractPdfTextPages(filePath) {
+  const data = await fs.readFile(filePath);
+  const parser = new PDFParse({
+    data,
+  });
+
+  try {
+    const result = await parser.getText();
+
+    return createExtractedPages(
+      result.pages.map((page) => ({
+        pageNumber: page.num,
+        text: page.text,
+      })),
+      result.text
+    );
+  } finally {
+    await parser.destroy();
+  }
+}
+
 async function extractDocxPreview(filePath) {
   const result = await mammoth.extractRawText({
     path: filePath,
@@ -586,10 +637,24 @@ async function extractDocxPreview(filePath) {
   return createPreviewPages([], result.value);
 }
 
+async function extractDocxTextPages(filePath) {
+  const result = await mammoth.extractRawText({
+    path: filePath,
+  });
+
+  return createExtractedPages([], result.value);
+}
+
 async function extractPlainTextPreview(filePath) {
   const text = await fs.readFile(filePath, "utf8");
 
   return createPreviewPages([], text);
+}
+
+async function extractPlainTextPages(filePath) {
+  const text = await fs.readFile(filePath, "utf8");
+
+  return createExtractedPages([], text);
 }
 
 async function extractCsvPreview(filePath) {
@@ -623,6 +688,12 @@ async function extractCsvPreview(filePath) {
   }
 }
 
+async function extractCsvTextPages(filePath) {
+  const text = await fs.readFile(filePath, "utf8");
+
+  return createExtractedPages([], text);
+}
+
 async function extractDocumentPreview(document) {
   const filePath = getAbsoluteDocumentPath(document);
 
@@ -652,6 +723,46 @@ async function extractDocumentPreview(document) {
     type: "text",
     pages: await extractPlainTextPreview(filePath),
   };
+}
+
+async function extractDocumentTextPages(document) {
+  const filePath = getAbsoluteDocumentPath(document);
+
+  if (document.format === "PDF") {
+    return extractPdfTextPages(filePath);
+  }
+
+  if (document.format === "DOCX") {
+    return extractDocxTextPages(filePath);
+  }
+
+  if (document.format === "CSV") {
+    return extractCsvTextPages(filePath);
+  }
+
+  return extractPlainTextPages(filePath);
+}
+
+async function chunkDocumentText(document) {
+  const pages = await extractDocumentTextPages(document);
+
+  const chunks = await replaceDocumentChunks({
+    documentId: document._id,
+    workspaceId: document.workspaceId,
+    pages,
+  });
+
+  document.pageCount =
+    pages.length > 0
+      ? Math.max(
+          ...pages.map((page) => page.pageNumber)
+        )
+      : 0;
+  document.status = "ready";
+
+  await document.save();
+
+  return chunks.length;
 }
 
 async function findDocumentInWorkspace({
@@ -844,10 +955,50 @@ export async function createDocument(req, res, next) {
       );
     }
 
+    await Document.updateOne(
+      {
+        _id: document._id,
+      },
+      {
+        status: "processing",
+      }
+    );
+    document.status = "processing";
+
+    let chunksCreated = 0;
+    let processingError = null;
+
+    try {
+      chunksCreated =
+        await chunkDocumentText(document);
+    } catch (error) {
+      processingError = error;
+      document.status = "failed";
+
+      await Document.updateOne(
+        {
+          _id: document._id,
+        },
+        {
+          status: "failed",
+        }
+      );
+
+      console.error(
+        "Failed to chunk uploaded document:",
+        error
+      );
+    }
+
     return res.status(201).json({
       success: true,
-      message: "Document uploaded successfully.",
+      message: processingError
+        ? "Document uploaded, but text chunking failed."
+        : "Document uploaded and chunked successfully.",
       document: formatDocument(document),
+      processing: {
+        chunksCreated,
+      },
     });
   } catch (error) {
     if (req.file?.path) {
