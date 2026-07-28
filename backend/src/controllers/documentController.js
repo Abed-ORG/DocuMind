@@ -10,6 +10,7 @@ import Document from "../models/Document.js";
 import User from "../models/User.js";
 import Workspace from "../models/Workspace.js";
 import { replaceDocumentChunks } from "../services/chunkingService.js";
+import { embedDocumentChunks } from "../services/embeddingService.js";
 import { cascadeDeleteDocumentData } from "../services/workspaceCascadeService.js";
 
 const currentDirectory = path.dirname(
@@ -966,11 +967,17 @@ export async function createDocument(req, res, next) {
     document.status = "processing";
 
     let chunksCreated = 0;
+    let embeddingsCreated = 0;
     let processingError = null;
 
     try {
       chunksCreated =
         await chunkDocumentText(document);
+      const embeddingResult =
+        await embedDocumentChunks(document._id);
+
+      embeddingsCreated =
+        embeddingResult.embeddedChunks;
     } catch (error) {
       processingError = error;
       document.status = "failed";
@@ -985,7 +992,7 @@ export async function createDocument(req, res, next) {
       );
 
       console.error(
-        "Failed to chunk uploaded document:",
+        "Failed to process uploaded document:",
         error
       );
     }
@@ -993,11 +1000,12 @@ export async function createDocument(req, res, next) {
     return res.status(201).json({
       success: true,
       message: processingError
-        ? "Document uploaded, but text chunking failed."
-        : "Document uploaded and chunked successfully.",
+        ? "Document uploaded, but processing failed."
+        : "Document uploaded, chunked, and embedded successfully.",
       document: formatDocument(document),
       processing: {
         chunksCreated,
+        embeddingsCreated,
       },
     });
   } catch (error) {
