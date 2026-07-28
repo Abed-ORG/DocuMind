@@ -31,22 +31,31 @@ const chunkSchema = new mongoose.Schema(
 
     embedding: {
       type: [Number],
-      required: [true, "Embedding is required."],
       default: undefined,
       validate: [
         {
           validator(value) {
             return (
-              Array.isArray(value) &&
-              value.length === CHUNK_EMBEDDING_DIMENSIONS
+              value === undefined ||
+              (Array.isArray(value) &&
+                value.length ===
+                  CHUNK_EMBEDDING_DIMENSIONS
+              )
             );
           },
           message: `Embedding must contain ${CHUNK_EMBEDDING_DIMENSIONS} dimensions.`,
         },
         {
           validator(value) {
-            return value.every((dimension) =>
-              Number.isFinite(dimension)
+            if (value === undefined) {
+              return true;
+            }
+
+            return (
+              Array.isArray(value) &&
+              value.every((dimension) =>
+                Number.isFinite(dimension)
+              )
             );
           },
           message:
