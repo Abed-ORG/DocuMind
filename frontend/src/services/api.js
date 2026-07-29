@@ -186,6 +186,22 @@ export function deleteDocument(
   );
 }
 
+export function reprocessDocument(
+  workspaceId,
+  documentId,
+  token
+) {
+  return request(
+    `/workspaces/${workspaceId}/documents/${documentId}/reprocess`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
 export function uploadDocument(
   workspaceId,
   file,

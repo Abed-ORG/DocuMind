@@ -10,6 +10,14 @@ const defaultRetryOptions = {
   baseDelayMs: 1000,
 };
 
+const retryableNetworkErrorCodes = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "ETIMEDOUT",
+  "EAI_AGAIN",
+]);
+
 let geminiClient;
 
 function getGeminiClient() {
@@ -53,14 +61,44 @@ function isRetryableGeminiError(error) {
     error?.status ??
     error?.statusCode ??
     error?.response?.status;
+  const code = error?.code ?? error?.cause?.code;
 
   return (
+    retryableNetworkErrorCodes.has(code) ||
+    error?.name === "TimeoutError" ||
+    error?.message === "Gemini embedding request timed out." ||
+    error?.message === "fetch failed" ||
     status === 429 ||
     status === 500 ||
     status === 502 ||
     status === 503 ||
     status === 504
   );
+}
+
+async function withTimeout(promise, timeoutMs) {
+  let timeoutId;
+
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const error = new Error(
+        "Gemini embedding request timed out."
+      );
+
+      error.code = "ETIMEDOUT";
+      error.name = "TimeoutError";
+      reject(error);
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([
+      promise,
+      timeout,
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function validateEmbedding(embedding) {
@@ -115,24 +153,30 @@ export async function embedTexts(texts, options = {}) {
   }
 
   const client = getGeminiClient();
+  const timeoutMs =
+    options.timeoutMs ??
+    env.geminiEmbeddingTimeoutMs;
   const response = await withRetry(
     () =>
-      client.models.embedContent({
-        model:
-          options.model ?? env.geminiEmbeddingModel,
-        contents: inputTexts.map((text) => ({
-          parts: [
-            {
-              text,
-            },
-          ],
-        })),
-        config: {
-          outputDimensionality:
-            CHUNK_EMBEDDING_DIMENSIONS,
-          taskType: "RETRIEVAL_DOCUMENT",
-        },
-      }),
+      withTimeout(
+        client.models.embedContent({
+          model:
+            options.model ?? env.geminiEmbeddingModel,
+          contents: inputTexts.map((text) => ({
+            parts: [
+              {
+                text,
+              },
+            ],
+          })),
+          config: {
+            outputDimensionality:
+              CHUNK_EMBEDDING_DIMENSIONS,
+            taskType: "RETRIEVAL_DOCUMENT",
+          },
+        }),
+        timeoutMs
+      ),
     options.retry
   );
   const embeddings = getEmbeddingValues(response);

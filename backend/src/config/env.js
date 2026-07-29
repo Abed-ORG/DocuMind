@@ -9,6 +9,9 @@ const geminiEmbeddingBatchSize = Number(
 const geminiEmbeddingRequestDelayMs = Number(
   process.env.GEMINI_EMBEDDING_REQUEST_DELAY_MS ?? 250
 );
+const geminiEmbeddingTimeoutMs = Number(
+  process.env.GEMINI_EMBEDDING_TIMEOUT_MS ?? 30000
+);
 
 if (!Number.isInteger(port) || port <= 0) {
   throw new Error("PORT must be a positive integer.");
@@ -29,6 +32,15 @@ if (
 ) {
   throw new Error(
     "GEMINI_EMBEDDING_REQUEST_DELAY_MS must be a non-negative integer."
+  );
+}
+
+if (
+  !Number.isInteger(geminiEmbeddingTimeoutMs) ||
+  geminiEmbeddingTimeoutMs <= 0
+) {
+  throw new Error(
+    "GEMINI_EMBEDDING_TIMEOUT_MS must be a positive integer."
   );
 }
 
@@ -53,4 +65,5 @@ export const env = {
     "gemini-embedding-2",
   geminiEmbeddingBatchSize,
   geminiEmbeddingRequestDelayMs,
+  geminiEmbeddingTimeoutMs,
 };
