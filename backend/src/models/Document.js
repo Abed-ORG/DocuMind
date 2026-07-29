@@ -73,6 +73,40 @@ const documentSchema = new mongoose.Schema(
       default: "uploaded",
     },
 
+    processingStage: {
+      type: String,
+      enum: {
+        values: [
+          "queued",
+          "extracting",
+          "chunking",
+          "embedding",
+          "ready",
+          "failed",
+        ],
+        message:
+          "Processing stage must be queued, extracting, chunking, embedding, ready, or failed.",
+      },
+      default: "queued",
+    },
+
+    processingProgress: {
+      type: Number,
+      min: [0, "Processing progress cannot be negative."],
+      max: [100, "Processing progress cannot exceed 100."],
+      default: 0,
+    },
+
+    processingError: {
+      type: String,
+      trim: true,
+      maxlength: [
+        1000,
+        "Processing error cannot exceed 1000 characters.",
+      ],
+      default: "",
+    },
+
     filePath: {
       type: String,
       required: [true, "File path is required."],

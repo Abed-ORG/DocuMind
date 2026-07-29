@@ -5,7 +5,9 @@ import { fileURLToPath } from "node:url";
 
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
+import JSZip from "jszip";
 
+import Chunk from "../models/Chunk.js";
 import Document from "../models/Document.js";
 import User from "../models/User.js";
 import Workspace from "../models/Workspace.js";
@@ -27,6 +29,11 @@ const maxCsvPreviewBytes = 512 * 1024;
 const maxCsvPreviewRows = 50;
 const maxCsvPreviewColumns = 16;
 const maxCsvCellCharacters = 160;
+const approximateDocxPageCharacters = 3000;
+const pipelineRetryOptions = {
+  maxRetries: 2,
+  baseDelayMs: 500,
+};
 
 const extensionToFormat = {
   ".pdf": "PDF",
@@ -46,6 +53,9 @@ function formatDocument(document) {
     fileSize: document.fileSize,
     contentHash: document.contentHash,
     status: document.status,
+    processingStage: document.processingStage,
+    processingProgress: document.processingProgress,
+    processingError: document.processingError,
     filePath: document.filePath,
     createdAt: document.createdAt,
     updatedAt: document.updatedAt,
@@ -588,6 +598,251 @@ function createExtractedPages(
   ];
 }
 
+function decodeXmlText(value) {
+  return String(value ?? "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&#(\d+);/g, (_, codePoint) =>
+      String.fromCodePoint(Number(codePoint))
+    )
+    .replace(/&#x([0-9a-f]+);/gi, (_, codePoint) =>
+      String.fromCodePoint(parseInt(codePoint, 16))
+    );
+}
+
+function cleanDocxPageText(value) {
+  return normalizePreviewText(value)
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function splitLongTextByWords(text, characterLimit) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const pages = [];
+  let current = "";
+
+  words.forEach((word) => {
+    const next = current
+      ? `${current} ${word}`
+      : word;
+
+    if (
+      current &&
+      next.length > characterLimit
+    ) {
+      pages.push(current);
+      current = word;
+      return;
+    }
+
+    current = next;
+  });
+
+  if (current) {
+    pages.push(current);
+  }
+
+  return pages;
+}
+
+function splitTextIntoApproximatePages(
+  text,
+  characterLimit = approximateDocxPageCharacters
+) {
+  const normalizedText = cleanDocxPageText(text);
+
+  if (!normalizedText) {
+    return [];
+  }
+
+  const pages = [];
+  let current = "";
+
+  normalizedText
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .forEach((paragraph) => {
+      if (paragraph.length > characterLimit) {
+        if (current) {
+          pages.push(current);
+          current = "";
+        }
+
+        pages.push(
+          ...splitLongTextByWords(
+            paragraph,
+            characterLimit
+          )
+        );
+        return;
+      }
+
+      const next = current
+        ? `${current}\n\n${paragraph}`
+        : paragraph;
+
+      if (
+        current &&
+        next.length > characterLimit
+      ) {
+        pages.push(current);
+        current = paragraph;
+        return;
+      }
+
+      current = next;
+    });
+
+  if (current) {
+    pages.push(current);
+  }
+
+  return pages.map((page, index) => ({
+    pageNumber: index + 1,
+    text: page,
+  }));
+}
+
+function splitDocxXmlIntoPages(xml) {
+  const pages = [""];
+  let currentPageIndex = 0;
+  let isInsideText = false;
+  let sawPageBreak = false;
+  const tokens = xml.match(/<[^>]+>|[^<]+/g) ?? [];
+
+  function appendText(text) {
+    pages[currentPageIndex] += text;
+  }
+
+  function appendPageBreak() {
+    sawPageBreak = true;
+
+    if (pages[currentPageIndex].trim()) {
+      pages.push("");
+      currentPageIndex += 1;
+    }
+  }
+
+  tokens.forEach((token) => {
+    if (!token.startsWith("<")) {
+      if (isInsideText) {
+        appendText(decodeXmlText(token));
+      }
+
+      return;
+    }
+
+    if (/^<w:t\b/.test(token)) {
+      isInsideText = true;
+      return;
+    }
+
+    if (/^<\/w:t>/.test(token)) {
+      isInsideText = false;
+      return;
+    }
+
+    if (
+      /^<w:lastRenderedPageBreak\b/.test(token) ||
+      (/^<w:br\b/.test(token) &&
+        /\bw:type=["']page["']/.test(token))
+    ) {
+      appendPageBreak();
+      return;
+    }
+
+    if (/^<w:tab\b/.test(token)) {
+      appendText("\t");
+      return;
+    }
+
+    if (/^<w:br\b/.test(token)) {
+      appendText("\n");
+      return;
+    }
+
+    if (/^<\/w:p>/.test(token)) {
+      appendText("\n\n");
+      return;
+    }
+
+    if (/^<\/w:tr>/.test(token)) {
+      appendText("\n");
+      return;
+    }
+
+    if (/^<\/w:tc>/.test(token)) {
+      appendText("\t");
+    }
+  });
+
+  const cleanedPages = pages
+    .map(cleanDocxPageText)
+    .filter(Boolean)
+    .map((text, index) => ({
+      pageNumber: index + 1,
+      text,
+    }));
+
+  return {
+    pages: cleanedPages,
+    hasPageBreaks: sawPageBreak,
+  };
+}
+
+async function extractDocxXmlPages(filePath) {
+  const buffer = await fs.readFile(filePath);
+  const zip = await JSZip.loadAsync(buffer);
+  const documentXml = await zip
+    .file("word/document.xml")
+    ?.async("string");
+
+  if (!documentXml) {
+    return {
+      pages: [],
+      hasPageBreaks: false,
+    };
+  }
+
+  return splitDocxXmlIntoPages(documentXml);
+}
+
+async function extractDocxPages(filePath) {
+  try {
+    const {
+      pages,
+      hasPageBreaks,
+    } = await extractDocxXmlPages(filePath);
+
+    if (hasPageBreaks && pages.length > 0) {
+      return pages;
+    }
+
+    if (pages.length > 0) {
+      return splitTextIntoApproximatePages(
+        pages.map((page) => page.text).join("\n\n")
+      );
+    }
+  } catch (error) {
+    console.warn(
+      "Failed to read DOCX XML page markers:",
+      error?.message ?? error
+    );
+  }
+
+  const result = await mammoth.extractRawText({
+    path: filePath,
+  });
+
+  return splitTextIntoApproximatePages(result.value);
+}
+
 async function extractPdfPreview(filePath) {
   const data = await fs.readFile(filePath);
   const parser = new PDFParse({
@@ -631,19 +886,15 @@ async function extractPdfTextPages(filePath) {
 }
 
 async function extractDocxPreview(filePath) {
-  const result = await mammoth.extractRawText({
-    path: filePath,
-  });
-
-  return createPreviewPages([], result.value);
+  return createPreviewPages(
+    await extractDocxPages(filePath)
+  );
 }
 
 async function extractDocxTextPages(filePath) {
-  const result = await mammoth.extractRawText({
-    path: filePath,
-  });
-
-  return createExtractedPages([], result.value);
+  return createExtractedPages(
+    await extractDocxPages(filePath)
+  );
 }
 
 async function extractPlainTextPreview(filePath) {
@@ -744,14 +995,98 @@ async function extractDocumentTextPages(document) {
   return extractPlainTextPages(filePath);
 }
 
-async function chunkDocumentText(document) {
-  const pages = await extractDocumentTextPages(document);
+async function updateDocumentProcessing({
+  documentId,
+  status,
+  processingStage,
+  processingProgress,
+  processingError,
+}) {
+  const update = {};
 
-  const chunks = await replaceDocumentChunks({
-    documentId: document._id,
-    workspaceId: document.workspaceId,
-    pages,
+  if (status !== undefined) {
+    update.status = status;
+  }
+
+  if (processingStage !== undefined) {
+    update.processingStage = processingStage;
+  }
+
+  if (processingProgress !== undefined) {
+    update.processingProgress = processingProgress;
+  }
+
+  if (processingError !== undefined) {
+    update.processingError = processingError;
+  }
+
+  await Document.updateOne(
+    {
+      _id: documentId,
+    },
+    update
+  );
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
   });
+}
+
+async function withPipelineRetry(
+  operation,
+  {
+    stage,
+    maxRetries = pipelineRetryOptions.maxRetries,
+    baseDelayMs = pipelineRetryOptions.baseDelayMs,
+  }
+) {
+  let attempt = 0;
+
+  while (true) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (attempt >= maxRetries) {
+        throw error;
+      }
+
+      attempt += 1;
+      console.warn(
+        `Retrying document ${stage} after failure (attempt ${attempt}/${maxRetries}):`,
+        error?.message ?? error
+      );
+      await sleep(baseDelayMs * 2 ** (attempt - 1));
+    }
+  }
+}
+
+async function chunkDocumentText(document) {
+  const pages = await withPipelineRetry(
+    () => extractDocumentTextPages(document),
+    {
+      stage: "extraction",
+    }
+  );
+
+  await updateDocumentProcessing({
+    documentId: document._id,
+    processingStage: "chunking",
+    processingProgress: 45,
+  });
+
+  const chunks = await withPipelineRetry(
+    () =>
+      replaceDocumentChunks({
+        documentId: document._id,
+        workspaceId: document.workspaceId,
+        pages,
+      }),
+    {
+      stage: "chunking",
+    }
+  );
 
   document.pageCount =
     pages.length > 0
@@ -759,11 +1094,106 @@ async function chunkDocumentText(document) {
           ...pages.map((page) => page.pageNumber)
         )
       : 0;
-  document.status = "ready";
 
   await document.save();
 
   return chunks.length;
+}
+
+function getProcessingErrorMessage(error) {
+  return (
+    error?.message ||
+    "Document processing failed."
+  ).slice(0, 1000);
+}
+
+async function processUploadedDocument(documentId) {
+  try {
+    const document =
+      await Document.findById(documentId);
+
+    if (!document) {
+      return;
+    }
+
+    await updateDocumentProcessing({
+      documentId: document._id,
+      status: "processing",
+      processingStage: "extracting",
+      processingProgress: 15,
+      processingError: "",
+    });
+
+    const chunksCreated =
+      await chunkDocumentText(document);
+
+    await updateDocumentProcessing({
+      documentId: document._id,
+      processingStage: "embedding",
+      processingProgress: 70,
+    });
+
+    const embeddingResult =
+      await embedDocumentChunks(document._id);
+
+    await updateDocumentProcessing({
+      documentId: document._id,
+      status: "ready",
+      processingStage: "ready",
+      processingProgress: 100,
+      processingError: "",
+    });
+
+    console.log(
+      `Document processing completed: ${document._id} (${chunksCreated} chunks, ${embeddingResult.embeddedChunks} embeddings)`
+    );
+  } catch (error) {
+    await updateDocumentProcessing({
+      documentId,
+      status: "failed",
+      processingStage: "failed",
+      processingProgress: 100,
+      processingError:
+        getProcessingErrorMessage(error),
+    });
+
+    console.error(
+      "Failed to process uploaded document:",
+      error
+    );
+  }
+}
+
+function enqueueDocumentProcessing(documentId) {
+  setImmediate(() => {
+    processUploadedDocument(documentId).catch(
+      (error) => {
+        console.error(
+          "Unexpected document processing failure:",
+          error
+        );
+      }
+    );
+  });
+}
+
+async function resetDocumentForReprocessing(document) {
+  await Chunk.deleteMany({
+    documentId: document._id,
+  });
+
+  await updateDocumentProcessing({
+    documentId: document._id,
+    status: "processing",
+    processingStage: "queued",
+    processingProgress: 5,
+    processingError: "",
+  });
+
+  document.status = "processing";
+  document.processingStage = "queued";
+  document.processingProgress = 5;
+  document.processingError = "";
 }
 
 async function findDocumentInWorkspace({
@@ -938,7 +1368,10 @@ export async function createDocument(req, res, next) {
       pageCount: 0,
       fileSize: req.file.size,
       contentHash,
-      status: "uploaded",
+      status: "processing",
+      processingStage: "queued",
+      processingProgress: 5,
+      processingError: "",
       filePath: getStoredFilePath(
         req.file.filename
       ),
@@ -956,56 +1389,16 @@ export async function createDocument(req, res, next) {
       );
     }
 
-    await Document.updateOne(
-      {
-        _id: document._id,
-      },
-      {
-        status: "processing",
-      }
-    );
-    document.status = "processing";
-
-    let chunksCreated = 0;
-    let embeddingsCreated = 0;
-    let processingError = null;
-
-    try {
-      chunksCreated =
-        await chunkDocumentText(document);
-      const embeddingResult =
-        await embedDocumentChunks(document._id);
-
-      embeddingsCreated =
-        embeddingResult.embeddedChunks;
-    } catch (error) {
-      processingError = error;
-      document.status = "failed";
-
-      await Document.updateOne(
-        {
-          _id: document._id,
-        },
-        {
-          status: "failed",
-        }
-      );
-
-      console.error(
-        "Failed to process uploaded document:",
-        error
-      );
-    }
+    enqueueDocumentProcessing(document._id);
 
     return res.status(201).json({
       success: true,
-      message: processingError
-        ? "Document uploaded, but processing failed."
-        : "Document uploaded, chunked, and embedded successfully.",
+      message:
+        "Document uploaded. Processing has started.",
       document: formatDocument(document),
       processing: {
-        chunksCreated,
-        embeddingsCreated,
+        stage: document.processingStage,
+        progress: document.processingProgress,
       },
     });
   } catch (error) {
@@ -1073,6 +1466,67 @@ export async function updateDocument(req, res, next) {
       success: true,
       message: "Document updated successfully.",
       document: formatDocument(document),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function reprocessDocument(req, res, next) {
+  try {
+    const workspace =
+      await findWorkspaceForUser({
+        workspaceId: req.params.id,
+        userId: req.user._id,
+      });
+
+    if (!workspace) {
+      return res.status(404).json({
+        success: false,
+        message: "Workspace not found.",
+      });
+    }
+
+    const document = await Document.findOne({
+      _id: req.params.documentId,
+      workspaceId: workspace._id,
+    });
+
+    if (!document) {
+      return res.status(404).json({
+        success: false,
+        message: "Document not found.",
+      });
+    }
+
+    if (document.status === "processing") {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Document is already processing.",
+      });
+    }
+
+    if (document.status !== "failed") {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Only failed documents can be reprocessed.",
+      });
+    }
+
+    await resetDocumentForReprocessing(document);
+    enqueueDocumentProcessing(document._id);
+
+    return res.status(202).json({
+      success: true,
+      message:
+        "Document reprocessing has started.",
+      document: formatDocument(document),
+      processing: {
+        stage: document.processingStage,
+        progress: document.processingProgress,
+      },
     });
   } catch (error) {
     next(error);

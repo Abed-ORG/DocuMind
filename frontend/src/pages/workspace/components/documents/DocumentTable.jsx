@@ -10,6 +10,7 @@ import {
   GitCompareArrows,
   Loader2,
   Menu,
+  RotateCcw,
   Search,
   Trash2,
   UploadCloud,
@@ -19,12 +20,41 @@ import documindHero from "../../../../assets/documind-hero.png";
 import { statusLabels } from "../../data/workspaceData";
 import { getFormatIcon } from "../../utils/workspaceUtils";
 
+const processingStageLabels = {
+  queued: "Queued",
+  extracting: "Extracting",
+  chunking: "Chunking",
+  embedding: "Embedding",
+};
+
+function getDocumentStatusLabel(document) {
+  if (document.status !== "processing") {
+    return (
+      statusLabels[document.status] ??
+      document.status
+    );
+  }
+
+  const stageLabel =
+    processingStageLabels[
+      document.processingStage
+    ] ?? "Processing";
+  const progress = Number.isFinite(
+    document.processingProgress
+  )
+    ? Math.round(document.processingProgress)
+    : 0;
+
+  return `${stageLabel} ${progress}%`;
+}
+
 function DocumentActionsMenu({
   document,
   onOpenSummary,
   onOpenPreview,
   onRenameDocument,
   onOpenExtraction,
+  onReprocessDocument,
   onDeleteDocument,
 }) {
   const [isOpen, setIsOpen] =
@@ -43,7 +73,8 @@ function DocumentActionsMenu({
       buttonRef.current.getBoundingClientRect();
     const viewportPadding = 12;
     const menuWidth = 168;
-    const estimatedMenuHeight = 206;
+    const estimatedMenuHeight =
+      document.status === "failed" ? 244 : 206;
     const gap = 8;
 
     const left = Math.min(
@@ -65,7 +96,7 @@ function DocumentActionsMenu({
         : preferredTop;
 
     setMenuPosition({ top, left });
-  }, []);
+  }, [document.status]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -197,6 +228,18 @@ function DocumentActionsMenu({
           >
             Extract
           </button>
+          {document.status === "failed" && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() =>
+                runAction(onReprocessDocument)
+              }
+            >
+              <RotateCcw size={15} />
+              Reprocess
+            </button>
+          )}
           <button
             className="danger-action"
             type="button"
@@ -225,6 +268,7 @@ function DocumentTable({
   onOpenUploadDialog,
   onRenameDocument,
   onOpenExtraction,
+  onReprocessDocument,
   onDeleteDocument,
 }) {
   return (
@@ -333,8 +377,12 @@ function DocumentTable({
                     <td>
                       <span
                         className={`badge status-${document.status}`}
+                        title={
+                          document.processingError ||
+                          undefined
+                        }
                       >
-                        {statusLabels[document.status]}
+                        {getDocumentStatusLabel(document)}
                       </span>
                     </td>
                     <td className="document-actions-cell">
@@ -344,6 +392,9 @@ function DocumentTable({
                         onOpenPreview={onOpenPreview}
                         onRenameDocument={onRenameDocument}
                         onOpenExtraction={onOpenExtraction}
+                        onReprocessDocument={
+                          onReprocessDocument
+                        }
                         onDeleteDocument={onDeleteDocument}
                       />
                     </td>

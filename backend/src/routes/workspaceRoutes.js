@@ -12,6 +12,7 @@ import {
   deleteDocument,
   getDocumentPreview,
   getDocuments,
+  reprocessDocument,
   updateDocument,
 } from "../controllers/documentController.js";
 
@@ -78,6 +79,14 @@ router.get(
   documentIdValidator,
   validateRequest,
   getDocumentPreview
+);
+
+router.post(
+  "/:id/documents/:documentId/reprocess",
+  workspaceIdValidator,
+  documentIdValidator,
+  validateRequest,
+  reprocessDocument
 );
 
 router

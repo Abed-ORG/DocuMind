@@ -52,6 +52,11 @@ export function mapApiDocument(document) {
     contentHash: document.contentHash,
     uploadedAt: formatUploadedAt(document.createdAt),
     status: document.status ?? "uploaded",
+    processingStage:
+      document.processingStage ?? "queued",
+    processingProgress:
+      document.processingProgress ?? 0,
+    processingError: document.processingError ?? "",
   };
 }
 

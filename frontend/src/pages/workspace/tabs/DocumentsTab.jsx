@@ -11,6 +11,7 @@ import {
   deleteDocument as deleteDocumentRequest,
   getDocumentPreview,
   getDocuments,
+  reprocessDocument as reprocessDocumentRequest,
   updateDocument as updateDocumentRequest,
   uploadDocument,
 } from "../../../services/api";
@@ -210,6 +211,10 @@ function DocumentsTab() {
     (item) => item.expiresAt
   );
 
+  const hasProcessingDocuments = documents.some(
+    (document) => document.status === "processing"
+  );
+
   const comparisonSelection = useMemo(() => {
     const documentIds = new Set(
       documents.map((document) => document.id)
@@ -252,7 +257,9 @@ function DocumentsTab() {
         return;
       }
 
-      setIsLoadingDocuments(true);
+      if (documentsReloadKey === 0) {
+        setIsLoadingDocuments(true);
+      }
       setDocumentsError("");
       setDocumentActionError("");
 
@@ -416,6 +423,18 @@ function DocumentsTab() {
 
     return () => window.clearInterval(timer);
   }, [hasExpiringUploadMessages]);
+
+  useEffect(() => {
+    if (!hasProcessingDocuments) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setDocumentsReloadKey((current) => current + 1);
+    }, 2000);
+
+    return () => window.clearInterval(timer);
+  }, [hasProcessingDocuments]);
 
   useEffect(
     () => () => {
@@ -616,6 +635,47 @@ function DocumentsTab() {
       );
     } finally {
       setIsDeletingDocument(false);
+    }
+  }
+
+  async function reprocessFailedDocument(document) {
+    if (!workspaceId || !token) {
+      setDocumentActionError(
+        "Unable to reprocess document without an active session."
+      );
+      return;
+    }
+
+    setDocumentActionError("");
+
+    try {
+      const response =
+        await reprocessDocumentRequest(
+          workspaceId,
+          document.id,
+          token
+        );
+      const updatedDocument = mapApiDocument(
+        response.document
+      );
+
+      setDocuments((current) =>
+        current.map((item) =>
+          item.id === updatedDocument.id
+            ? updatedDocument
+            : item
+        )
+      );
+      setPreviewDocument((current) =>
+        current?.id === updatedDocument.id
+          ? updatedDocument
+          : current
+      );
+    } catch (error) {
+      setDocumentActionError(
+        error.message ||
+          "Unable to reprocess document."
+      );
     }
   }
 
@@ -986,6 +1046,7 @@ function DocumentsTab() {
         onOpenUploadDialog={() => setIsUploadDialogOpen(true)}
         onRenameDocument={openRenameDialog}
         onOpenExtraction={openExtraction}
+        onReprocessDocument={reprocessFailedDocument}
         onDeleteDocument={openDeleteDialog}
       />
 
