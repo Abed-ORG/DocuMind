@@ -12,6 +12,9 @@ const geminiEmbeddingRequestDelayMs = Number(
 const geminiEmbeddingTimeoutMs = Number(
   process.env.GEMINI_EMBEDDING_TIMEOUT_MS ?? 30000
 );
+const geminiGenerativeTimeoutMs = Number(
+  process.env.GEMINI_GENERATIVE_TIMEOUT_MS ?? 30000
+);
 
 if (!Number.isInteger(port) || port <= 0) {
   throw new Error("PORT must be a positive integer.");
@@ -44,6 +47,15 @@ if (
   );
 }
 
+if (
+  !Number.isInteger(geminiGenerativeTimeoutMs) ||
+  geminiGenerativeTimeoutMs <= 0
+) {
+  throw new Error(
+    "GEMINI_GENERATIVE_TIMEOUT_MS must be a positive integer."
+  );
+}
+
 if (!process.env.MONGODB_URI) {
   throw new Error("MONGODB_URI is missing from the .env file.");
 }
@@ -66,4 +78,11 @@ export const env = {
   geminiEmbeddingBatchSize,
   geminiEmbeddingRequestDelayMs,
   geminiEmbeddingTimeoutMs,
+  geminiGenerativeModel:
+    process.env.GEMINI_GENERATIVE_MODEL ??
+    "gemini-flash-latest",
+  geminiGenerativeTimeoutMs,
+  vectorSearchIndexName:
+    process.env.VECTOR_SEARCH_INDEX_NAME ??
+    "chunk_embedding_vector_index",
 };

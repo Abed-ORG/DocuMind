@@ -58,3 +58,61 @@ export const updateWorkspaceValidators = [
     .matches(hexColorPattern)
     .withMessage("Workspace color must be a valid hex color."),
 ];
+
+export const searchWorkspaceValidators = [
+  body("query")
+    .trim()
+    .notEmpty()
+    .withMessage("Search query is required.")
+    .isLength({ max: 2000 })
+    .withMessage("Search query cannot exceed 2000 characters."),
+
+  body("limit")
+    .optional()
+    .isInt({
+      min: 1,
+      max: 20,
+    })
+    .withMessage("Limit must be between 1 and 20.")
+    .toInt(),
+];
+
+export const answerWorkspaceQuestionValidators = [
+  ...searchWorkspaceValidators,
+
+  body("conversationHistory")
+    .optional()
+    .isArray({
+      max: 20,
+    })
+    .withMessage(
+      "Conversation history must be an array with at most 20 messages."
+    ),
+
+  body("conversationHistory.*.role")
+    .optional()
+    .trim()
+    .isIn([
+      "user",
+      "assistant",
+    ])
+    .withMessage(
+      "Conversation history role must be user or assistant."
+    ),
+
+  body("conversationHistory.*.content")
+    .optional()
+    .trim()
+    .isLength({ max: 4000 })
+    .withMessage(
+      "Conversation history content cannot exceed 4000 characters."
+    ),
+
+  body("conversationHistory.*.text")
+    .optional()
+    .trim()
+    .isLength({ max: 4000 })
+    .withMessage(
+      "Conversation history text cannot exceed 4000 characters."
+    ),
+];
