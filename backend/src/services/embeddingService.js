@@ -5,6 +5,11 @@ import Chunk, {
   CHUNK_EMBEDDING_DIMENSIONS,
 } from "../models/Chunk.js";
 
+export const GEMINI_EMBEDDING_TASK_TYPES = {
+  document: "RETRIEVAL_DOCUMENT",
+  query: "RETRIEVAL_QUERY",
+};
+
 const defaultRetryOptions = {
   maxRetries: 3,
   baseDelayMs: 1000,
@@ -156,6 +161,9 @@ export async function embedTexts(texts, options = {}) {
   const timeoutMs =
     options.timeoutMs ??
     env.geminiEmbeddingTimeoutMs;
+  const taskType =
+    options.taskType ??
+    GEMINI_EMBEDDING_TASK_TYPES.document;
   const response = await withRetry(
     () =>
       withTimeout(
@@ -172,7 +180,7 @@ export async function embedTexts(texts, options = {}) {
           config: {
             outputDimensionality:
               CHUNK_EMBEDDING_DIMENSIONS,
-            taskType: "RETRIEVAL_DOCUMENT",
+            taskType,
           },
         }),
         timeoutMs
@@ -205,6 +213,13 @@ export async function embedText(text, options = {}) {
   );
 
   return embedding;
+}
+
+export function embedQuery(text, options = {}) {
+  return embedText(text, {
+    ...options,
+    taskType: GEMINI_EMBEDDING_TASK_TYPES.query,
+  });
 }
 
 export async function embedChunks(chunks, options = {}) {

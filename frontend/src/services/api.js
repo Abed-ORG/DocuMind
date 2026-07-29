@@ -202,6 +202,54 @@ export function reprocessDocument(
   );
 }
 
+export function searchWorkspaceChunks(
+  workspaceId,
+  {
+    query,
+    limit,
+  },
+  token
+) {
+  return request(`/workspaces/${workspaceId}/search`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      query,
+      ...(limit !== undefined && {
+        limit,
+      }),
+    }),
+  });
+}
+
+export function answerWorkspaceQuestion(
+  workspaceId,
+  {
+    query,
+    limit,
+    conversationHistory,
+  },
+  token
+) {
+  return request(`/workspaces/${workspaceId}/answer`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      query,
+      ...(limit !== undefined && {
+        limit,
+      }),
+      ...(conversationHistory !== undefined && {
+        conversationHistory,
+      }),
+    }),
+  });
+}
+
 export function uploadDocument(
   workspaceId,
   file,

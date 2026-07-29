@@ -8,6 +8,10 @@ import {
   updateWorkspace,
 } from "../controllers/workspaceController.js";
 import {
+  answerWorkspace,
+  searchWorkspace,
+} from "../controllers/searchController.js";
+import {
   createDocument,
   deleteDocument,
   getDocumentPreview,
@@ -25,7 +29,9 @@ import {
   updateDocumentValidators,
 } from "../validators/documentValidators.js";
 import {
+  answerWorkspaceQuestionValidators,
   createWorkspaceValidators,
+  searchWorkspaceValidators,
   updateWorkspaceValidators,
   workspaceIdValidator,
 } from "../validators/workspaceValidators.js";
@@ -87,6 +93,22 @@ router.post(
   documentIdValidator,
   validateRequest,
   reprocessDocument
+);
+
+router.post(
+  "/:id/search",
+  workspaceIdValidator,
+  searchWorkspaceValidators,
+  validateRequest,
+  searchWorkspace
+);
+
+router.post(
+  "/:id/answer",
+  workspaceIdValidator,
+  answerWorkspaceQuestionValidators,
+  validateRequest,
+  answerWorkspace
 );
 
 router
