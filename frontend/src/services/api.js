@@ -250,6 +250,105 @@ export function answerWorkspaceQuestion(
   });
 }
 
+export function getConversations(workspaceId, token) {
+  return request(
+    `/workspaces/${workspaceId}/conversations`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
+export function createConversation(
+  workspaceId,
+  conversationData,
+  token
+) {
+  return request(
+    `/workspaces/${workspaceId}/conversations`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(
+        conversationData ?? {}
+      ),
+    }
+  );
+}
+
+export function deleteConversation(
+  workspaceId,
+  conversationId,
+  token
+) {
+  return request(
+    `/workspaces/${workspaceId}/conversations/${conversationId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
+export function updateConversation(
+  workspaceId,
+  conversationId,
+  conversationData,
+  token
+) {
+  return request(
+    `/workspaces/${workspaceId}/conversations/${conversationId}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(conversationData),
+    }
+  );
+}
+
+export function getConversationMessages(
+  workspaceId,
+  conversationId,
+  token
+) {
+  return request(
+    `/workspaces/${workspaceId}/conversations/${conversationId}/messages`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
+export function createConversationMessage(
+  workspaceId,
+  conversationId,
+  messageData,
+  token
+) {
+  return request(
+    `/workspaces/${workspaceId}/conversations/${conversationId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(messageData),
+    }
+  );
+}
+
 export function uploadDocument(
   workspaceId,
   file,

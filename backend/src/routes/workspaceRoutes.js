@@ -8,6 +8,14 @@ import {
   updateWorkspace,
 } from "../controllers/workspaceController.js";
 import {
+  createConversation,
+  createConversationMessage,
+  deleteConversation,
+  getConversationMessages,
+  getConversations,
+  updateConversation,
+} from "../controllers/conversationController.js";
+import {
   answerWorkspace,
   searchWorkspace,
 } from "../controllers/searchController.js";
@@ -28,6 +36,12 @@ import {
   documentIdValidator,
   updateDocumentValidators,
 } from "../validators/documentValidators.js";
+import {
+  conversationIdValidator,
+  createConversationValidators,
+  createMessageValidators,
+  updateConversationValidators,
+} from "../validators/conversationValidators.js";
 import {
   answerWorkspaceQuestionValidators,
   createWorkspaceValidators,
@@ -110,6 +124,52 @@ router.post(
   validateRequest,
   answerWorkspace
 );
+
+router
+  .route("/:id/conversations")
+  .get(
+    workspaceIdValidator,
+    validateRequest,
+    getConversations
+  )
+  .post(
+    workspaceIdValidator,
+    createConversationValidators,
+    validateRequest,
+    createConversation
+  );
+
+router
+  .route("/:id/conversations/:conversationId")
+  .put(
+    workspaceIdValidator,
+    conversationIdValidator,
+    updateConversationValidators,
+    validateRequest,
+    updateConversation
+  )
+  .delete(
+    workspaceIdValidator,
+    conversationIdValidator,
+    validateRequest,
+    deleteConversation
+  );
+
+router
+  .route("/:id/conversations/:conversationId/messages")
+  .get(
+    workspaceIdValidator,
+    conversationIdValidator,
+    validateRequest,
+    getConversationMessages
+  )
+  .post(
+    workspaceIdValidator,
+    conversationIdValidator,
+    createMessageValidators,
+    validateRequest,
+    createConversationMessage
+  );
 
 router
   .route("/:id")
