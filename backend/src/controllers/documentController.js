@@ -62,6 +62,17 @@ function formatDocument(document) {
   };
 }
 
+function getDocumentMimeType(document) {
+  const mimeTypes = {
+    PDF: "application/pdf",
+    DOCX: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    TXT: "text/plain; charset=utf-8",
+    CSV: "text/csv; charset=utf-8",
+  };
+
+  return mimeTypes[document.format] ?? "application/octet-stream";
+}
+
 function getDocumentFormat(filename) {
   const extension = path
     .extname(filename)
@@ -891,6 +902,14 @@ async function extractDocxPreview(filePath) {
   );
 }
 
+async function extractDocxHtmlPreview(filePath) {
+  const result = await mammoth.convertToHtml({
+    path: filePath,
+  });
+
+  return result.value;
+}
+
 async function extractDocxTextPages(filePath) {
   return createExtractedPages(
     await extractDocxPages(filePath)
@@ -951,14 +970,15 @@ async function extractDocumentPreview(document) {
 
   if (document.format === "PDF") {
     return {
-      type: "text",
-      pages: await extractPdfPreview(filePath),
+      type: "file",
+      pages: [],
     };
   }
 
   if (document.format === "DOCX") {
     return {
-      type: "text",
+      type: "html",
+      html: await extractDocxHtmlPreview(filePath),
       pages: await extractDocxPreview(filePath),
     };
   }
@@ -1275,6 +1295,63 @@ export async function getDocumentPreview(req, res, next) {
         generatedAt: new Date().toISOString(),
       },
     });
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return res.status(404).json({
+        success: false,
+        message:
+          "The stored document file could not be found.",
+      });
+    }
+
+    next(error);
+  }
+}
+
+export async function getDocumentFile(req, res, next) {
+  try {
+    const workspace =
+      await findWorkspaceForUser({
+        workspaceId: req.params.id,
+        userId: req.user._id,
+      });
+
+    if (!workspace) {
+      return res.status(404).json({
+        success: false,
+        message: "Workspace not found.",
+      });
+    }
+
+    const document =
+      await findDocumentInWorkspace({
+        workspaceId: workspace._id,
+        documentId: req.params.documentId,
+      });
+
+    if (!document) {
+      return res.status(404).json({
+        success: false,
+        message: "Document not found.",
+      });
+    }
+
+    const filePath = getAbsoluteDocumentPath(document);
+
+    await fs.access(filePath);
+
+    res.setHeader(
+      "Content-Type",
+      getDocumentMimeType(document)
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${encodeURIComponent(
+        document.originalName
+      )}"`
+    );
+
+    return res.sendFile(filePath);
   } catch (error) {
     if (error.code === "ENOENT") {
       return res.status(404).json({

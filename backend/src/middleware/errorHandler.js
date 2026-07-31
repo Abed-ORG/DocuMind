@@ -9,6 +9,15 @@ export function errorHandler(error, _req, res, _next) {
       statusCode === 500
         ? "An unexpected server error occurred."
         : error.message,
+    ...(error.code && {
+      code: error.code,
+    }),
+    ...(error.retryable !== undefined && {
+      retryable: error.retryable,
+    }),
+    ...(error.finishReason && {
+      finishReason: error.finishReason,
+    }),
     ...(env.nodeEnv === "development" && {
       stack: error.stack,
     }),

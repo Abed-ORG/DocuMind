@@ -22,6 +22,7 @@ import {
 import {
   createDocument,
   deleteDocument,
+  getDocumentFile,
   getDocumentPreview,
   getDocuments,
   reprocessDocument,
@@ -99,6 +100,14 @@ router.get(
   documentIdValidator,
   validateRequest,
   getDocumentPreview
+);
+
+router.get(
+  "/:id/documents/:documentId/file",
+  workspaceIdValidator,
+  documentIdValidator,
+  validateRequest,
+  getDocumentFile
 );
 
 router.post(

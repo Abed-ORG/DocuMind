@@ -33,6 +33,20 @@ function toObjectId(value, fieldName) {
   return new mongoose.Types.ObjectId(value);
 }
 
+function toObjectIds(values = [], fieldName) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      values
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+    ),
+  ].map((value) => toObjectId(value, fieldName));
+}
+
 function formatSearchResult(result) {
   return {
     chunkId: result.chunkId?.toString(),
@@ -52,6 +66,7 @@ export async function searchWorkspaceChunks({
   query,
   limit,
   numCandidates,
+  documentIds,
 } = {}) {
   const normalizedQuery = normalizeQuery(query);
 
@@ -67,7 +82,19 @@ export async function searchWorkspaceChunks({
   const normalizedNumCandidates =
     numCandidates ??
     Math.max(normalizedLimit * 10, minNumCandidates);
+  const documentObjectIds = toObjectIds(
+    documentIds,
+    "Document id"
+  );
   const queryVector = await embedQuery(normalizedQuery);
+  const vectorFilter = {
+    workspaceId: workspaceObjectId,
+    ...(documentObjectIds.length > 0 && {
+      documentId: {
+        $in: documentObjectIds,
+      },
+    }),
+  };
 
   const results = await Chunk.aggregate([
     {
@@ -77,9 +104,7 @@ export async function searchWorkspaceChunks({
         queryVector,
         numCandidates: normalizedNumCandidates,
         limit: normalizedLimit,
-        filter: {
-          workspaceId: workspaceObjectId,
-        },
+        filter: vectorFilter,
       },
     },
     {

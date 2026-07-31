@@ -80,6 +80,19 @@ export const searchWorkspaceValidators = [
 export const answerWorkspaceQuestionValidators = [
   ...searchWorkspaceValidators,
 
+  body("documentIds")
+    .optional()
+    .isArray({ max: 20 })
+    .withMessage(
+      "Document ids must be an array with at most 20 items."
+    ),
+
+  body("documentIds.*")
+    .optional()
+    .trim()
+    .isMongoId()
+    .withMessage("Document id is invalid."),
+
   body("conversationHistory")
     .optional()
     .isArray({
@@ -114,5 +127,20 @@ export const answerWorkspaceQuestionValidators = [
     .isLength({ max: 4000 })
     .withMessage(
       "Conversation history text cannot exceed 4000 characters."
+    ),
+
+  body("conversationHistory.*.citations")
+    .optional()
+    .isArray({ max: 20 })
+    .withMessage(
+      "Conversation history citations must be an array with at most 20 items."
+    ),
+
+  body("conversationHistory.*.citations.*.documentId")
+    .optional()
+    .trim()
+    .isMongoId()
+    .withMessage(
+      "Conversation history citation document id is invalid."
     ),
 ];
