@@ -14,7 +14,9 @@ const systemInstruction = [
   "If the sources do not contain enough information to answer, say that the provided documents do not include enough information.",
   "Do not invent document names, page numbers, citations, quotes, or facts.",
   "Use recent conversation history only to understand follow-up references, not as a source of factual truth.",
+  "If the user asks to rewrite, reformat, or put the previous answer in a paragraph, preserve the same document focus and answer from the retrieved sources.",
   "Keep the answer concise, clear, and directly focused on the user's question.",
+  "Do not use markdown emphasis markers such as **bold** or *italic*; write clean plain text except for markdown tables when the user explicitly asks for a table.",
 ].join("\n");
 
 function normalizeText(value, maxCharacters) {

@@ -20,10 +20,12 @@ import {
   createConversation,
   createConversationMessage,
   deleteConversation,
+  getDocuments,
   getConversationMessages,
   getConversations,
   updateConversation,
 } from "../../../services/api";
+import { mapApiDocument } from "../utils/workspaceUtils";
 
 function formatConversationTimestamp(value) {
   if (!value) {
@@ -259,6 +261,166 @@ function getHighlightedSourceParts(citation) {
   };
 }
 
+function isCsvCitation(citation) {
+  return /\.csv$/i.test(
+    String(citation?.documentName ?? "")
+  );
+}
+
+function parseCsvRows(text, maxRows = 12) {
+  const source = String(text ?? "").replace(
+    /\r\n/g,
+    "\n"
+  );
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let isQuoted = false;
+
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+
+    if (character === "\"") {
+      if (isQuoted && source[index + 1] === "\"") {
+        cell += "\"";
+        index += 1;
+      } else {
+        isQuoted = !isQuoted;
+      }
+      continue;
+    }
+
+    if (character === "," && !isQuoted) {
+      row.push(cell.trim());
+      cell = "";
+      continue;
+    }
+
+    if (character === "\n" && !isQuoted) {
+      row.push(cell.trim());
+      if (row.some(Boolean)) {
+        rows.push(row);
+      }
+      row = [];
+      cell = "";
+
+      if (rows.length >= maxRows) {
+        break;
+      }
+      continue;
+    }
+
+    cell += character;
+  }
+
+  if (rows.length < maxRows) {
+    row.push(cell.trim());
+    if (row.some(Boolean)) {
+      rows.push(row);
+    }
+  }
+
+  return rows.filter((cells) => cells.length > 1);
+}
+
+function renderCsvCitationSource(citation) {
+  const rows = parseCsvRows(citation?.text);
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const columnCount = Math.max(
+    ...rows.map((row) => row.length)
+  );
+  const columns = Array.from(
+    {
+      length: columnCount,
+    },
+    (_, index) => `Col ${index + 1}`
+  );
+
+  return (
+    <div className="citation-csv-scroll">
+      <table className="citation-csv-table">
+        <thead>
+          <tr>
+            <th className="citation-csv-row-number">
+              #
+            </th>
+            {columns.map((column) => (
+              <th key={column}>{column}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={`csv-citation-${rowIndex}`}>
+              <td className="citation-csv-row-number">
+                {rowIndex + 1}
+              </td>
+              {columns.map((column, columnIndex) => (
+                <td key={`${column}-${columnIndex}`}>
+                  {row[columnIndex] || "-"}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function renderTextCitationSource(activeCitationSource) {
+  return (
+    <p className="citation-source-text">
+      {activeCitationSource.parts.length > 0
+        ? activeCitationSource.parts.map(
+            (part, index) =>
+              part.isHighlighted ? (
+                <mark key={index}>{part.text}</mark>
+              ) : (
+                <span key={index}>{part.text}</span>
+              )
+          )
+        : "Source text unavailable."}
+    </p>
+  );
+}
+
+function getMentionQuery(input) {
+  const caretText = String(input ?? "");
+  const match = caretText.match(
+    /(^|\s)@([^\s@]*)$/
+  );
+
+  return match ? match[2].toLowerCase() : null;
+}
+
+function getTaggedDocumentIds({
+  message,
+  selectedDocuments,
+  documents,
+}) {
+  const taggedIds = new Set(
+    selectedDocuments.map((document) => document.id)
+  );
+  const normalizedMessage = String(message ?? "").toLowerCase();
+
+  documents.forEach((document) => {
+    if (
+      normalizedMessage.includes(
+        `@${document.name.toLowerCase()}`
+      )
+    ) {
+      taggedIds.add(document.id);
+    }
+  });
+
+  return [...taggedIds];
+}
+
 function mapMessage(message) {
   return {
     id: message.id,
@@ -269,17 +431,65 @@ function mapMessage(message) {
   };
 }
 
+function createRetryMessage({
+  conversationId,
+  content,
+  retryQuestion,
+  documentIds,
+}) {
+  return {
+    id: `retry-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}`,
+    role: "assistant",
+    content,
+    citations: [],
+    createdAt: new Date().toISOString(),
+    isRetryableError: true,
+    retryQuestion,
+    retryDocumentIds: documentIds,
+    conversationId,
+  };
+}
+
+function getAnswerFailureMessage(error) {
+  if (error?.code === "INCOMPLETE_AI_RESPONSE") {
+    return (
+      error.message ||
+      "The AI response was incomplete. Please retry."
+    );
+  }
+
+  if (error?.status === 429) {
+    return "The AI provider is rate-limited right now. Please retry shortly.";
+  }
+
+  if (error?.retryable) {
+    return (
+      error.message ||
+      "The AI could not complete the response. Please retry."
+    );
+  }
+
+  return (
+    error?.message ||
+    "The AI could not complete the response. Please retry."
+  );
+}
+
 function getHistory(messages) {
   return messages
     .slice(-6)
     .map((message) => ({
       role: message.role,
       content: message.content,
+      citations: message.citations ?? [],
     }));
 }
 
 function normalizeMarkdownMessage(content) {
   return String(content ?? "")
+    .replace(/\r\n/g, "\n")
     .replace(
       /(^|\s)\*\s+(?=\*\*|\S)/g,
       "$1\n* "
@@ -289,13 +499,17 @@ function normalizeMarkdownMessage(content) {
 }
 
 function renderInlineMarkdown(text, keyPrefix) {
-  return String(text)
-    .split(/(\*\*[^*]+\*\*)/g)
+  return String(text ?? "")
+    .split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*\n]+\*)/g)
     .filter((part) => part.length > 0)
     .map((part, index) => {
       const boldMatch = part.match(
         /^\*\*([^*]+)\*\*$/
       );
+      const italicMatch = part.match(
+        /^\*([^*\n]+)\*$/
+      );
+      const codeMatch = part.match(/^`([^`]+)`$/);
 
       if (boldMatch) {
         return (
@@ -305,8 +519,98 @@ function renderInlineMarkdown(text, keyPrefix) {
         );
       }
 
+      if (italicMatch) {
+        return (
+          <span key={`${keyPrefix}-${index}`}>
+            {italicMatch[1]}
+          </span>
+        );
+      }
+
+      if (codeMatch) {
+        return (
+          <code key={`${keyPrefix}-${index}`}>
+            {codeMatch[1]}
+          </code>
+        );
+      }
+
       return part;
     });
+}
+
+function isMarkdownTableSeparator(line) {
+  const cells = line
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+
+  return (
+    cells.length > 1 &&
+    cells.every((cell) =>
+      /^:?-{3,}:?$/.test(cell)
+    )
+  );
+}
+
+function isMarkdownTableRow(line) {
+  return (
+    line.includes("|") &&
+    line
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|").length > 1
+  );
+}
+
+function parseMarkdownTableRow(line) {
+  return line
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function renderMarkdownTable({
+  header,
+  rows,
+  key,
+}) {
+  return (
+    <div className="message-table-scroll" key={key}>
+      <table className="message-markdown-table">
+        <thead>
+          <tr>
+            {header.map((cell, index) => (
+              <th key={`${key}-head-${index}`}>
+                {renderInlineMarkdown(
+                  cell,
+                  `${key}-head-${index}`
+                )}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={`${key}-row-${rowIndex}`}>
+              {header.map((_, cellIndex) => (
+                <td
+                  key={`${key}-cell-${rowIndex}-${cellIndex}`}
+                >
+                  {renderInlineMarkdown(
+                    row[cellIndex] ?? "",
+                    `${key}-cell-${rowIndex}-${cellIndex}`
+                  )}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function renderMarkdownMessage(content) {
@@ -339,12 +643,78 @@ function renderMarkdownMessage(content) {
     listItems = [];
   }
 
-  lines.forEach((line) => {
+  for (
+    let lineIndex = 0;
+    lineIndex < lines.length;
+    lineIndex += 1
+  ) {
+    const line = lines[lineIndex];
+
+    if (/^---+$/.test(line)) {
+      flushList();
+      blocks.push(
+        <hr key={`rule-${blocks.length}`} />
+      );
+      continue;
+    }
+
+    const headingMatch = line.match(
+      /^#{1,6}\s+(.+)$/
+    );
+
+    if (headingMatch) {
+      flushList();
+      const headingIndex = blocks.length;
+
+      blocks.push(
+        <h3 key={`heading-${headingIndex}`}>
+          {renderInlineMarkdown(
+            headingMatch[1],
+            `heading-${headingIndex}`
+          )}
+        </h3>
+      );
+      continue;
+    }
+
+    if (
+      isMarkdownTableRow(line) &&
+      isMarkdownTableSeparator(
+        lines[lineIndex + 1] ?? ""
+      )
+    ) {
+      flushList();
+
+      const header = parseMarkdownTableRow(line);
+      const rows = [];
+      let nextIndex = lineIndex + 2;
+
+      while (
+        nextIndex < lines.length &&
+        isMarkdownTableRow(lines[nextIndex])
+      ) {
+        rows.push(
+          parseMarkdownTableRow(lines[nextIndex])
+        );
+        nextIndex += 1;
+      }
+
+      blocks.push(
+        renderMarkdownTable({
+          header,
+          rows,
+          key: `table-${blocks.length}`,
+        })
+      );
+      lineIndex = nextIndex - 1;
+      continue;
+    }
+
     const listMatch = line.match(/^[-*]\s+(.+)$/);
 
     if (listMatch) {
       listItems.push(listMatch[1]);
-      return;
+      continue;
     }
 
     flushList();
@@ -359,7 +729,7 @@ function renderMarkdownMessage(content) {
         )}
       </p>
     );
-  });
+  }
 
   flushList();
 
@@ -381,6 +751,9 @@ function ChatTab() {
     useState("");
   const [messageInput, setMessageInput] =
     useState("");
+  const [documents, setDocuments] = useState([]);
+  const [selectedMentionDocuments, setSelectedMentionDocuments] =
+    useState([]);
   const [isLoadingConversations, setIsLoadingConversations] =
     useState(true);
   const [isLoadingMessages, setIsLoadingMessages] =
@@ -401,6 +774,7 @@ function ChatTab() {
     useState(null);
 
   const messageEndRef = useRef(null);
+  const messageInputRef = useRef(null);
   const isAwaitingResponseRef = useRef(false);
   const animationTimeoutRef = useRef(null);
   const shouldSkipRenameSaveRef = useRef(false);
@@ -409,6 +783,31 @@ function ChatTab() {
 
   const activeMessages =
     messagesByConversation[activeConversationId] ?? [];
+  const mentionQuery = getMentionQuery(messageInput);
+  const isMentionPickerOpen =
+    mentionQuery !== null && !isTyping;
+  const mentionOptions = useMemo(
+    () =>
+      documents
+        .filter(
+          (document) =>
+            !selectedMentionDocuments.some(
+              (selectedDocument) =>
+                selectedDocument.id === document.id
+            )
+        )
+        .filter((document) =>
+          document.name
+            .toLowerCase()
+            .includes(mentionQuery ?? "")
+        )
+        .slice(0, 12),
+    [
+      documents,
+      mentionQuery,
+      selectedMentionDocuments,
+    ]
+  );
   const activeCitationSource = useMemo(
     () =>
       activeCitation
@@ -431,6 +830,42 @@ function ChatTab() {
       ),
     [conversations, conversationSearch]
   );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadDocuments() {
+      if (!token || !workspaceId) {
+        setDocuments([]);
+        return;
+      }
+
+      try {
+        const response = await getDocuments(
+          workspaceId,
+          token
+        );
+
+        if (isMounted) {
+          setDocuments(
+            (response.documents ?? []).map(
+              mapApiDocument
+            )
+          );
+        }
+      } catch {
+        if (isMounted) {
+          setDocuments([]);
+        }
+      }
+    }
+
+    loadDocuments();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [token, workspaceId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -607,6 +1042,8 @@ function ChatTab() {
         ...current,
         [response.conversation.id]: [],
       }));
+      setMessageInput("");
+      setSelectedMentionDocuments([]);
       setActiveCitation(null);
     } catch (error) {
       setChatError(
@@ -763,6 +1200,177 @@ function ChatTab() {
     }
   }
 
+  function selectMentionDocument(document) {
+    setSelectedMentionDocuments((current) => {
+      if (
+        current.some(
+          (selectedDocument) =>
+            selectedDocument.id === document.id
+        )
+      ) {
+        return current;
+      }
+
+      return [...current, document];
+    });
+    setMessageInput((current) =>
+      current.replace(
+        /(^|\s)@([^\s@]*)$/,
+        `$1@${document.name} `
+      )
+    );
+    window.requestAnimationFrame(() => {
+      messageInputRef.current?.focus();
+    });
+  }
+
+  function removeMentionDocument(documentId) {
+    const document = selectedMentionDocuments.find(
+      (selectedDocument) =>
+        selectedDocument.id === documentId
+    );
+
+    setSelectedMentionDocuments((current) =>
+      current.filter(
+        (document) => document.id !== documentId
+      )
+    );
+
+    if (document?.name) {
+      setMessageInput((current) =>
+        current
+          .replace(`@${document.name}`, "")
+          .replace(/\s{2,}/g, " ")
+          .trimStart()
+      );
+    }
+  }
+
+  async function requestAssistantAnswer({
+    conversationId,
+    question,
+    documentIds,
+    history,
+    retryMessageId,
+  }) {
+    try {
+      const answerResponse =
+        await answerWorkspaceQuestion(
+          workspaceId,
+          {
+            query: question,
+            limit: 5,
+            documentIds,
+            conversationHistory: getHistory(history),
+          },
+          token
+        );
+      const assistantResponse =
+        await createConversationMessage(
+          workspaceId,
+          conversationId,
+          {
+            role: "assistant",
+            content: answerResponse.answer,
+            citations:
+              answerResponse.citations ?? [],
+          },
+          token
+        );
+      const assistantMessage = mapMessage(
+        assistantResponse.chatMessage
+      );
+
+      updateConversationFromResponse(
+        assistantResponse.conversation
+      );
+      setMessagesByConversation((current) => {
+        const conversationMessages =
+          current[conversationId] ?? [];
+        const nextMessages = retryMessageId
+          ? conversationMessages.map((message) =>
+              message.id === retryMessageId
+                ? assistantMessage
+                : message
+            )
+          : [
+              ...conversationMessages,
+              assistantMessage,
+            ];
+
+        return {
+          ...current,
+          [conversationId]: nextMessages,
+        };
+      });
+      setSelectedMentionDocuments([]);
+    } catch (error) {
+      const retryMessage = createRetryMessage({
+        conversationId,
+        content: getAnswerFailureMessage(error),
+        retryQuestion: question,
+        documentIds,
+      });
+
+      setMessagesByConversation((current) => {
+        const conversationMessages =
+          current[conversationId] ?? [];
+        const nextMessages = retryMessageId
+          ? conversationMessages.map((message) =>
+              message.id === retryMessageId
+                ? retryMessage
+                : message
+            )
+          : [
+              ...conversationMessages,
+              retryMessage,
+            ];
+
+        return {
+          ...current,
+          [conversationId]: nextMessages,
+        };
+      });
+    }
+  }
+
+  async function retryAssistantAnswer(message) {
+    if (
+      isAwaitingResponseRef.current ||
+      !token ||
+      !workspaceId ||
+      !activeConversationId
+    ) {
+      return;
+    }
+
+    isAwaitingResponseRef.current = true;
+    setChatError("");
+    setIsTyping(true);
+
+    try {
+      const history = (
+        messagesByConversation[
+          activeConversationId
+        ] ?? []
+      ).filter(
+        (item) => item.id !== message.id
+      );
+
+      await requestAssistantAnswer({
+        conversationId: activeConversationId,
+        question: message.retryQuestion,
+        documentIds:
+          message.retryDocumentIds ?? [],
+        history,
+        retryMessageId: message.id,
+      });
+    } finally {
+      isAwaitingResponseRef.current = false;
+      setIsTyping(false);
+    }
+  }
+
   async function sendMessage(event) {
     event.preventDefault();
 
@@ -790,6 +1398,12 @@ function ChatTab() {
         await ensureActiveConversation();
       const existingMessages =
         messagesByConversation[conversationId] ?? [];
+      const documentIds = getTaggedDocumentIds({
+        message: text,
+        selectedDocuments:
+          selectedMentionDocuments,
+        documents,
+      });
       const userResponse =
         await createConversationMessage(
           workspaceId,
@@ -827,42 +1441,12 @@ function ChatTab() {
           setAnimatedMessageId(null);
         }, 480);
 
-      const answerResponse =
-        await answerWorkspaceQuestion(
-          workspaceId,
-          {
-            query: text,
-            limit: 5,
-            conversationHistory:
-              getHistory(existingMessages),
-          },
-          token
-        );
-      const assistantResponse =
-        await createConversationMessage(
-          workspaceId,
-          conversationId,
-          {
-            role: "assistant",
-            content: answerResponse.answer,
-            citations:
-              answerResponse.citations ?? [],
-          },
-          token
-        );
-
-      updateConversationFromResponse(
-        assistantResponse.conversation
-      );
-      setMessagesByConversation((current) => ({
-        ...current,
-        [conversationId]: [
-          ...(current[conversationId] ?? []),
-          mapMessage(
-            assistantResponse.chatMessage
-          ),
-        ],
-      }));
+      await requestAssistantAnswer({
+        conversationId,
+        question: text,
+        documentIds,
+        history: existingMessages,
+      });
     } catch (error) {
       setChatError(
         error.message ||
@@ -980,6 +1564,10 @@ function ChatTab() {
                         setActiveConversationId(
                           conversation.id
                         );
+                        setMessageInput("");
+                        setSelectedMentionDocuments(
+                          []
+                        );
                         setActiveCitation(null);
                       }}
                       onDoubleClick={() =>
@@ -1049,6 +1637,19 @@ function ChatTab() {
               >
                 {message.role === "user" ? (
                   <p>{message.content}</p>
+                ) : message.isRetryableError ? (
+                  <div className="message-retry-panel">
+                    <p>{message.content}</p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        retryAssistantAnswer(message)
+                      }
+                      disabled={isTyping}
+                    >
+                      Retry response
+                    </button>
+                  </div>
                 ) : (
                   <div className="message-content">
                     {renderMarkdownMessage(
@@ -1066,7 +1667,8 @@ function ChatTab() {
                     )}
                   </time>
                 )}
-                {message.citations?.length > 0 && (
+                {!message.isRetryableError &&
+                  message.citations?.length > 0 && (
                   <div className="citation-chip-row">
                     {message.citations.map(
                       (citation, index) => (
@@ -1153,22 +1755,16 @@ function ChatTab() {
                 {activeCitationSource.answerContext}
               </p>
             )}
-            <p className="citation-source-text">
-              {activeCitationSource.parts.length > 0
-                ? activeCitationSource.parts.map(
-                    (part, index) =>
-                      part.isHighlighted ? (
-                        <mark key={index}>
-                          {part.text}
-                        </mark>
-                      ) : (
-                        <span key={index}>
-                          {part.text}
-                        </span>
-                      )
-                  )
-                : "Source text unavailable."}
-            </p>
+            {isCsvCitation(activeCitation)
+              ? renderCsvCitationSource(
+                  activeCitation
+                ) ??
+                renderTextCitationSource(
+                  activeCitationSource
+                )
+              : renderTextCitationSource(
+                  activeCitationSource
+                )}
           </aside>
         )}
 
@@ -1176,18 +1772,72 @@ function ChatTab() {
           className="chat-input-bar"
           onSubmit={sendMessage}
         >
-          <input
-            value={messageInput}
-            onChange={(event) =>
-              setMessageInput(event.target.value)
-            }
-            disabled={isTyping}
-            placeholder={
-              isTyping
-                ? "Waiting for response"
-                : "Ask about your documents"
-            }
-          />
+          <div className="chat-input-field">
+            {selectedMentionDocuments.length > 0 && (
+              <div className="selected-document-tags">
+                {selectedMentionDocuments.map(
+                  (document) => (
+                    <span key={document.id}>
+                      @{document.name}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${document.name}`}
+                        onClick={() =>
+                          removeMentionDocument(
+                            document.id
+                          )
+                        }
+                      >
+                        <X size={13} />
+                      </button>
+                    </span>
+                  )
+                )}
+              </div>
+            )}
+            {isMentionPickerOpen && (
+              <div
+                className="document-mention-menu"
+                role="listbox"
+              >
+                {mentionOptions.length > 0 ? (
+                  mentionOptions.map((document) => (
+                    <button
+                      key={document.id}
+                      type="button"
+                      role="option"
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        selectMentionDocument(
+                          document
+                        );
+                      }}
+                    >
+                      <strong>
+                        {document.name}
+                      </strong>
+                      <span>{document.format}</span>
+                    </button>
+                  ))
+                ) : (
+                  <p>No matching documents</p>
+                )}
+              </div>
+            )}
+            <input
+              ref={messageInputRef}
+              value={messageInput}
+              onChange={(event) =>
+                setMessageInput(event.target.value)
+              }
+              disabled={isTyping}
+              placeholder={
+                isTyping
+                  ? "Waiting for response"
+                  : "Ask about your documents"
+              }
+            />
+          </div>
           <button
             className="primary-action"
             type="submit"

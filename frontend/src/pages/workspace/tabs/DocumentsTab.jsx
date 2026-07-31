@@ -9,6 +9,7 @@ import { useParams } from "react-router";
 import { useAuth } from "../../../context/AuthContext";
 import {
   deleteDocument as deleteDocumentRequest,
+  getDocumentFileBlob,
   getDocumentPreview,
   getDocuments,
   reprocessDocument as reprocessDocumentRequest,
@@ -117,6 +118,8 @@ function DocumentsTab() {
       error: "",
       pages: [],
       table: null,
+      html: "",
+      fileUrl: "",
     });
 
   const [summaryState, setSummaryState] =
@@ -323,6 +326,8 @@ function DocumentsTab() {
           error: "",
           pages: [],
           table: null,
+          html: "",
+          fileUrl: "",
         });
         return;
       }
@@ -333,6 +338,8 @@ function DocumentsTab() {
         error: "",
         pages: [],
         table: null,
+        html: "",
+        fileUrl: "",
       });
 
       try {
@@ -341,10 +348,22 @@ function DocumentsTab() {
           previewDocumentId,
           token
         );
+        const previewType =
+          response.preview?.type ?? "text";
+        const fileUrl =
+          previewType === "file"
+            ? URL.createObjectURL(
+                await getDocumentFileBlob(
+                  workspaceId,
+                  previewDocumentId,
+                  token
+                )
+              )
+            : "";
 
         if (isActive) {
           setPreviewState({
-            type: response.preview?.type ?? "text",
+            type: previewType,
             isLoading: false,
             error: "",
             pages: Array.isArray(
@@ -353,7 +372,11 @@ function DocumentsTab() {
               ? response.preview.pages
               : [],
             table: response.preview?.table ?? null,
+            html: response.preview?.html ?? "",
+            fileUrl,
           });
+        } else if (fileUrl) {
+          URL.revokeObjectURL(fileUrl);
         }
       } catch (error) {
         if (isActive) {
@@ -365,6 +388,8 @@ function DocumentsTab() {
               "Unable to load document preview.",
             pages: [],
             table: null,
+            html: "",
+            fileUrl: "",
           });
         }
       }
@@ -376,6 +401,15 @@ function DocumentsTab() {
       isActive = false;
     };
   }, [previewDocumentId, workspaceId, token]);
+
+  useEffect(
+    () => () => {
+      if (previewState.fileUrl) {
+        URL.revokeObjectURL(previewState.fileUrl);
+      }
+    },
+    [previewState.fileUrl]
+  );
 
   useEffect(() => {
     if (!summaryState?.isLoading) {
@@ -1129,6 +1163,8 @@ function DocumentsTab() {
         pages={previewState.pages}
         previewType={previewState.type}
         table={previewState.table}
+        html={previewState.html}
+        fileUrl={previewState.fileUrl}
         onClose={() => setPreviewDocument(null)}
       />
     </div>

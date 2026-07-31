@@ -56,6 +56,7 @@ export async function answerWorkspace(
       workspaceId: workspace._id,
       question: req.body.query,
       limit: req.body.limit,
+      documentIds: req.body.documentIds,
       conversationHistory:
         req.body.conversationHistory,
     });

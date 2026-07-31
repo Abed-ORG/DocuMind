@@ -42,6 +42,9 @@ async function request(
 
     error.status = response.status;
     error.errors = data.errors || [];
+    error.code = data.code || "";
+    error.retryable = Boolean(data.retryable);
+    error.finishReason = data.finishReason || "";
 
     throw error;
   }
@@ -152,6 +155,41 @@ export function getDocumentPreview(
   );
 }
 
+export async function getDocumentFileBlob(
+  workspaceId,
+  documentId,
+  token
+) {
+  const response = await fetch(
+    `${API_BASE_URL}/workspaces/${workspaceId}/documents/${documentId}/file`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    let data;
+
+    try {
+      data = await response.json();
+    } catch {
+      data = {};
+    }
+
+    const error = new Error(
+      data.message || "Unable to load document file."
+    );
+
+    error.status = response.status;
+    throw error;
+  }
+
+  return response.blob();
+}
+
 export function updateDocument(
   workspaceId,
   documentId,
@@ -230,6 +268,7 @@ export function answerWorkspaceQuestion(
     query,
     limit,
     conversationHistory,
+    documentIds,
   },
   token
 ) {
@@ -245,6 +284,9 @@ export function answerWorkspaceQuestion(
       }),
       ...(conversationHistory !== undefined && {
         conversationHistory,
+      }),
+      ...(documentIds !== undefined && {
+        documentIds,
       }),
     }),
   });

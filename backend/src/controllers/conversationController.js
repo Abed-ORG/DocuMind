@@ -4,6 +4,35 @@ import Workspace from "../models/Workspace.js";
 
 const defaultConversationTitle =
   "New Conversation";
+const titleStopWords = new Set([
+  "about",
+  "also",
+  "and",
+  "can",
+  "could",
+  "document",
+  "documents",
+  "file",
+  "files",
+  "for",
+  "from",
+  "give",
+  "into",
+  "its",
+  "make",
+  "please",
+  "show",
+  "summarize",
+  "summary",
+  "table",
+  "tell",
+  "that",
+  "the",
+  "this",
+  "what",
+  "with",
+  "you",
+]);
 
 function formatDate(value) {
   return value ?? null;
@@ -67,19 +96,55 @@ function sendConversationNotFound(res) {
 }
 
 function buildConversationTitle(content) {
-  const title = String(content ?? "")
+  const normalizedContent = String(content ?? "")
+    .replace(/@([\w .()[\]-]+\.(?:pdf|docx|txt|csv))/gi, "$1")
+    .replace(/\b(can|could)\s+u\b/gi, "")
+    .replace(/\b(can|could)\s+you\b/gi, "")
+    .replace(/\b(tell me about|give me|show me|summarize for me|summarize|please)\b/gi, "")
+    .replace(/\b(the|a|an)\s+(table|summary|paragraph)\b/gi, "")
+    .replace(/\b(in|as)\s+(a\s+)?(paragraph|table|summary)\b/gi, "")
+    .replace(/\b\w+\.(pdf|docx|txt|csv)\b/gi, (match) =>
+      match
+        .replace(/\.(pdf|docx|txt|csv)$/i, "")
+        .replace(/[_-]+/g, " ")
+    )
+    .replace(/[_-]+/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 
-  if (!title) {
+  if (!normalizedContent) {
     return defaultConversationTitle;
   }
 
-  if (title.length <= 80) {
+  const words = normalizedContent
+    .split(" ")
+    .map((word) => word.trim())
+    .filter((word) => {
+      const normalizedWord = word.toLowerCase();
+
+      return (
+        normalizedWord.length > 1 &&
+        !titleStopWords.has(normalizedWord)
+      );
+    })
+    .slice(0, 5);
+
+  const titleSource =
+    words.length > 0
+      ? words.join(" ")
+      : normalizedContent;
+  const title = titleSource
+    .replace(/\b\w/g, (letter) =>
+      letter.toUpperCase()
+    )
+    .trim();
+
+  if (title.length <= 56) {
     return title;
   }
 
-  return `${title.slice(0, 77).trim()}...`;
+  return `${title.slice(0, 53).trim()}...`;
 }
 
 function buildConversationUpdates({
