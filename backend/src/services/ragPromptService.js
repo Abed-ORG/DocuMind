@@ -72,7 +72,8 @@ function normalizeConversationHistory(
 
 function normalizeSourceChunks(
   sourceChunks = [],
-  maxChunkCharacters = defaultMaxChunkCharacters
+  maxChunkCharacters = defaultMaxChunkCharacters,
+  startCitationNumber = 1
 ) {
   if (!Array.isArray(sourceChunks)) {
     return [];
@@ -83,7 +84,7 @@ function normalizeSourceChunks(
       Boolean(normalizeText(chunk?.text))
     )
     .map((chunk, index) => ({
-      citationNumber: index + 1,
+      citationNumber: startCitationNumber + index,
       chunkId: chunk.chunkId?.toString(),
       documentId: chunk.documentId?.toString(),
       documentName:
@@ -208,4 +209,83 @@ export function buildRagPromptText(options = {}) {
     "",
     prompt.userPrompt,
   ].join("\n");
+}
+
+const comparisonSystemInstruction = [
+  "You are DocuMind, a source-grounded document comparison assistant.",
+  "Compare the two selected documents only on the requested topic using the provided source chunks.",
+  "Cite sources with bracket notation like [1] or [2] for every factual claim that comes from the sources.",
+  "Use evidence from both documents when available, and clearly separate each document's position.",
+  "Identify meaningful similarities, differences, and evidence gaps.",
+  "If one or both source sets do not contain enough information, say exactly which document lacks enough evidence.",
+  "Do not invent document names, page numbers, citations, quotes, or facts.",
+  "Write clean plain text with concise section headings. Do not use markdown emphasis markers such as **bold** or *italic*.",
+].join("\n");
+
+export function buildComparisonPrompt({
+  topic,
+  firstDocumentName,
+  secondDocumentName,
+  firstSourceChunks = [],
+  secondSourceChunks = [],
+  maxChunkCharacters = defaultMaxChunkCharacters,
+  maxTopicCharacters = defaultMaxQuestionCharacters,
+} = {}) {
+  const normalizedTopic = normalizeText(
+    topic,
+    maxTopicCharacters
+  );
+
+  if (!normalizedTopic) {
+    throw new Error("Comparison topic is required.");
+  }
+
+  const firstDocument =
+    normalizeText(firstDocumentName, 255) ||
+    "First document";
+  const secondDocument =
+    normalizeText(secondDocumentName, 255) ||
+    "Second document";
+  const firstSources = normalizeSourceChunks(
+    firstSourceChunks,
+    maxChunkCharacters,
+    1
+  );
+  const secondSources = normalizeSourceChunks(
+    secondSourceChunks,
+    maxChunkCharacters,
+    firstSources.length + 1
+  );
+  const sources = [
+    ...firstSources,
+    ...secondSources,
+  ];
+  const userPrompt = [
+    `Comparison topic: ${normalizedTopic}`,
+    "",
+    `Document A: ${firstDocument}`,
+    "Document A source chunks:",
+    formatSourceChunks(firstSources),
+    "",
+    `Document B: ${secondDocument}`,
+    "Document B source chunks:",
+    formatSourceChunks(secondSources),
+    "",
+    "Write the comparison with these sections:",
+    "Overview",
+    `How ${firstDocument} treats the topic`,
+    `How ${secondDocument} treats the topic`,
+    "Similarities",
+    "Differences",
+    "Evidence gaps",
+  ].join("\n");
+
+  return {
+    systemInstruction: comparisonSystemInstruction,
+    userPrompt,
+    topic: normalizedTopic,
+    firstDocumentName: firstDocument,
+    secondDocumentName: secondDocument,
+    sources,
+  };
 }

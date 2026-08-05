@@ -1,4 +1,70 @@
-import { GitCompareArrows } from "lucide-react";
+import {
+  AlertCircle,
+  GitCompareArrows,
+  Loader2,
+} from "lucide-react";
+
+function formatSourceLabel(source) {
+  const metadata = [];
+
+  if (source.pageNumber) {
+    metadata.push(`p. ${source.pageNumber}`);
+  }
+
+  if (
+    source.chunkIndex !== null &&
+    source.chunkIndex !== undefined
+  ) {
+    metadata.push(`chunk ${source.chunkIndex}`);
+  }
+
+  return [
+    `[${source.citationNumber ?? source.label}]`,
+    source.documentName,
+    metadata.length > 0
+      ? metadata.join(", ")
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" - ");
+}
+
+function ComparisonAnswer({ answer }) {
+  const blocks = String(answer ?? "")
+    .split(/\n{2,}|\n(?=[A-Z][A-Za-z ]{2,40}:?$)/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  if (blocks.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="comparison-answer">
+      {blocks.map((block, index) => {
+        const normalizedBlock = block.replace(/:$/, "");
+        const isHeading =
+          index > 0 &&
+          normalizedBlock.length <= 60 &&
+          !normalizedBlock.includes("[");
+
+        if (isHeading) {
+          return (
+            <h4 key={`${block}-${index}`}>
+              {normalizedBlock}
+            </h4>
+          );
+        }
+
+        return (
+          <p key={`${block}-${index}`}>
+            {block}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
 
 function CrossDocumentComparison({
   documents,
@@ -13,11 +79,21 @@ function CrossDocumentComparison({
   const secondDocument = documents.find(
     (document) => document.id === comparison.secondDocumentId
   );
+  const selectedDocumentsReady =
+    firstDocument?.status === "ready" &&
+    secondDocument?.status === "ready";
 
   const canCompare =
     documents.length >= 2 &&
     Boolean(comparison.topic.trim()) &&
-    comparison.firstDocumentId !== comparison.secondDocumentId;
+    comparison.firstDocumentId !== comparison.secondDocumentId &&
+    selectedDocumentsReady &&
+    !comparison.isLoading;
+
+  const citations =
+    comparison.citations?.length > 0
+      ? comparison.citations
+      : comparison.sources ?? [];
 
   return (
     <section className="comparison-panel">
@@ -30,7 +106,7 @@ function CrossDocumentComparison({
 
       <div className="step-form">
         <div className="form-group">
-          <label htmlFor="first-document">Step 1: First document</label>
+          <label htmlFor="first-document">First document</label>
           <select
             id="first-document"
             value={comparison.firstDocumentId}
@@ -40,6 +116,10 @@ function CrossDocumentComparison({
                 ...current,
                 firstDocumentId: event.target.value,
                 hasResult: false,
+                error: "",
+                answer: "",
+                citations: [],
+                sources: [],
               }))
             }
           >
@@ -56,7 +136,7 @@ function CrossDocumentComparison({
 
         <div className="form-group">
           <label htmlFor="second-document">
-            Step 1: Second document
+            Second document
           </label>
           <select
             id="second-document"
@@ -67,6 +147,10 @@ function CrossDocumentComparison({
                 ...current,
                 secondDocumentId: event.target.value,
                 hasResult: false,
+                error: "",
+                answer: "",
+                citations: [],
+                sources: [],
               }))
             }
           >
@@ -85,7 +169,7 @@ function CrossDocumentComparison({
 
         <div className="form-group">
           <label htmlFor="comparison-topic">
-            Step 2: Comparison topic
+            Comparison topic
           </label>
           <input
             id="comparison-topic"
@@ -95,6 +179,10 @@ function CrossDocumentComparison({
                 ...current,
                 topic: event.target.value,
                 hasResult: false,
+                error: "",
+                answer: "",
+                citations: [],
+                sources: [],
               }))
             }
             placeholder="Example: compliance obligations"
@@ -107,26 +195,54 @@ function CrossDocumentComparison({
           onClick={onCompare}
           disabled={!canCompare}
         >
-          <GitCompareArrows size={17} />
-          Step 3: Compare
+          {comparison.isLoading ? (
+            <Loader2 className="spinner" size={17} />
+          ) : (
+            <GitCompareArrows size={17} />
+          )}
+          {comparison.isLoading ? "Comparing" : "Compare"}
         </button>
       </div>
 
-      {comparison.hasResult && firstDocument && secondDocument && (
+      {documents.length >= 2 &&
+        firstDocument &&
+        secondDocument &&
+        !selectedDocumentsReady && (
+          <div className="comparison-status" role="status">
+            <AlertCircle size={17} />
+            Both selected documents must be ready before comparison.
+          </div>
+        )}
+
+      {comparison.error && (
+        <div className="comparison-status is-error" role="alert">
+          <AlertCircle size={17} />
+          {comparison.error}
+        </div>
+      )}
+
+      {comparison.hasResult &&
+        firstDocument &&
+        secondDocument &&
+        !comparison.error && (
         <article className="comparison-result">
           <h3>Comparative response</h3>
-          <p>
-            Both documents connect {comparison.topic} to traceable AI
-            review. The outlook report frames it as a buyer requirement,
-            while the interview notes describe it as a daily workflow
-            blocker when source passages are hard to inspect.
-          </p>
-          <div className="citation-chip-row">
-            <button type="button">{firstDocument.name}</button>
-            <button type="button">{secondDocument.name}</button>
-          </div>
+          <ComparisonAnswer answer={comparison.answer} />
+          {citations.length > 0 && (
+            <div className="citation-chip-row">
+              {citations.map((citation) => (
+                <button
+                  key={`${citation.chunkId}-${citation.citationNumber ?? citation.label}`}
+                  type="button"
+                  title={citation.text}
+                >
+                  {formatSourceLabel(citation)}
+                </button>
+              ))}
+            </div>
+          )}
         </article>
-      )}
+        )}
     </section>
   );
 }
