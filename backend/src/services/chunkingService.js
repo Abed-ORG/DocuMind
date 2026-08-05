@@ -1,4 +1,5 @@
 import Chunk from "../models/Chunk.js";
+import Summary from "../models/Summary.js";
 
 export const DEFAULT_CHUNK_TOKEN_LIMIT = 600;
 export const DEFAULT_CHUNK_TOKEN_OVERLAP = 100;
@@ -304,9 +305,14 @@ export async function replaceDocumentChunks({
     overlapTokens,
   });
 
-  await Chunk.deleteMany({
-    documentId,
-  });
+  await Promise.all([
+    Chunk.deleteMany({
+      documentId,
+    }),
+    Summary.deleteMany({
+      documentId,
+    }),
+  ]);
 
   if (chunks.length === 0) {
     return [];

@@ -20,11 +20,14 @@ import {
   createConversation,
   createConversationMessage,
   deleteConversation,
+  getDocumentFileBlob,
+  getDocumentPreview,
   getDocuments,
   getConversationMessages,
   getConversations,
   updateConversation,
 } from "../../../services/api";
+import { PreviewPanel } from "../components/documents";
 import { mapApiDocument } from "../utils/workspaceUtils";
 
 function formatConversationTimestamp(value) {
@@ -120,154 +123,40 @@ function getCitationChipLabel(citation) {
   return `${sourceLabel}, ${pageLabel}`;
 }
 
-function escapeRegExp(value) {
-  return String(value).replace(
-    /[.*+?^${}()|[\]\\]/g,
-    "\\$&"
-  );
-}
+function getDocumentFormatFromName(documentName) {
+  const extension = String(documentName ?? "")
+    .split(".")
+    .pop()
+    ?.toUpperCase();
 
-function getAnswerCitationContext(
-  answerText,
-  citation
-) {
-  const label =
-    citation.citationNumber ?? citation.label;
-  const citationPattern = new RegExp(
-    `\\[${escapeRegExp(label)}\\]`
-  );
-  const sentences = String(answerText ?? "")
-    .split(/(?<=[.!?])\s+|\n+/)
-    .map((sentence) => sentence.trim())
-    .filter(Boolean);
-
-  return (
-    sentences.find((sentence) =>
-      citationPattern.test(sentence)
-    ) ?? ""
-  );
-}
-
-const highlightStopWords = new Set([
-  "about",
-  "across",
-  "after",
-  "also",
-  "and",
-  "are",
-  "based",
-  "been",
-  "before",
-  "between",
-  "can",
-  "could",
-  "does",
-  "for",
-  "from",
-  "has",
-  "have",
-  "how",
-  "including",
-  "into",
-  "its",
-  "may",
-  "not",
-  "our",
-  "the",
-  "their",
-  "then",
-  "there",
-  "these",
-  "this",
-  "that",
-  "those",
-  "through",
-  "was",
-  "were",
-  "what",
-  "when",
-  "where",
-  "which",
-  "while",
-  "with",
-  "you",
-  "your",
-]);
-
-function getSignificantTerms(value) {
-  return new Set(
-    String(value ?? "")
-      .toLowerCase()
-      .match(/[a-z0-9]{3,}/g)
-      ?.filter(
-        (word) => !highlightStopWords.has(word)
-      ) ?? []
-  );
-}
-
-function splitSourceText(text) {
-  const sourceText = String(text ?? "");
-
-  return (
-    sourceText.match(
-      /[^.!?\n]+(?:[.!?]+|\n+|$)|\s+/g
-    ) ?? [sourceText]
-  ).filter((part) => part.length > 0);
-}
-
-function getHighlightedSourceParts(citation) {
-  const sourceText = citation.text || "";
-  const answerContext = getAnswerCitationContext(
-    citation.answerText,
-    citation
-  );
-  const contextTerms =
-    getSignificantTerms(answerContext);
-  const parts = splitSourceText(sourceText);
-
-  if (!sourceText || parts.length === 0) {
-    return {
-      answerContext,
-      parts: [],
-    };
+  if (["PDF", "DOCX", "TXT", "CSV"].includes(extension)) {
+    return extension;
   }
 
-  let bestPartIndex = -1;
-  let bestScore = 0;
-
-  parts.forEach((part, index) => {
-    const partTerms = getSignificantTerms(part);
-    let score = 0;
-
-    contextTerms.forEach((term) => {
-      if (partTerms.has(term)) {
-        score += 1;
-      }
-    });
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestPartIndex = index;
-    }
-  });
-
-  return {
-    answerContext,
-    parts: parts.map((part, index) => ({
-      text: part,
-      isHighlighted:
-        index === bestPartIndex && bestScore > 0,
-    })),
-  };
+  return "TXT";
 }
 
-function isCsvCitation(citation) {
-  return /\.csv$/i.test(
-    String(citation?.documentName ?? "")
-  );
+function normalizeCsvCell(value) {
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function parseCsvRows(text, maxRows = 12) {
+function normalizeCsvRow(cells) {
+  return cells.map(normalizeCsvCell).join("\u001f").toLowerCase();
+}
+
+function normalizeSearchText(value) {
+  return normalizeCsvCell(value).toLowerCase();
+}
+
+function isLikelyUsefulCsvCell(value) {
+  const cell = normalizeCsvCell(value);
+
+  return cell.length >= 2 && !/^(na|n\/a|null|none)$/i.test(cell);
+}
+
+function parseCsvRows(text) {
   const source = String(text ?? "").replace(
     /\r\n/g,
     "\n"
@@ -303,33 +192,49 @@ function parseCsvRows(text, maxRows = 12) {
       }
       row = [];
       cell = "";
-
-      if (rows.length >= maxRows) {
-        break;
-      }
       continue;
     }
 
     cell += character;
   }
 
-  if (rows.length < maxRows) {
-    row.push(cell.trim());
-    if (row.some(Boolean)) {
-      rows.push(row);
-    }
+  row.push(cell.trim());
+  if (row.some(Boolean)) {
+    rows.push(row);
   }
 
   return rows.filter((cells) => cells.length > 1);
 }
 
-function renderCsvCitationSource(citation) {
-  const rows = parseCsvRows(citation?.text);
+function createCsvPreviewTableFromText({
+  csvText,
+  citationText,
+}) {
+  const rows = parseCsvRows(csvText);
 
   if (rows.length === 0) {
-    return null;
+    return {
+      columns: [],
+      rows: [],
+      isTruncated: false,
+    };
   }
 
+  const headerRow = rows[0];
+  const bodyRows = rows.slice(1);
+  const citationRows = parseCsvRows(citationText);
+  const normalizedHeaderRow = normalizeCsvRow(headerRow);
+  const citationCandidateRows =
+    normalizeCsvRow(citationRows[0] ?? []) ===
+    normalizedHeaderRow
+      ? citationRows.slice(1)
+      : citationRows;
+  const citationRowKeys = new Set(
+    citationCandidateRows.map(normalizeCsvRow)
+  );
+  const normalizedCitationText = normalizeSearchText(
+    citationText
+  );
   const columnCount = Math.max(
     ...rows.map((row) => row.length)
   );
@@ -337,56 +242,85 @@ function renderCsvCitationSource(citation) {
     {
       length: columnCount,
     },
-    (_, index) => `Col ${index + 1}`
+    (_, index) =>
+      normalizeCsvCell(headerRow[index]) ||
+      `Column ${index + 1}`
   );
 
-  return (
-    <div className="citation-csv-scroll">
-      <table className="citation-csv-table">
-        <thead>
-          <tr>
-            <th className="citation-csv-row-number">
-              #
-            </th>
-            {columns.map((column) => (
-              <th key={column}>{column}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, rowIndex) => (
-            <tr key={`csv-citation-${rowIndex}`}>
-              <td className="citation-csv-row-number">
-                {rowIndex + 1}
-              </td>
-              {columns.map((column, columnIndex) => (
-                <td key={`${column}-${columnIndex}`}>
-                  {row[columnIndex] || "-"}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+  return {
+    columns,
+    rows: bodyRows.map((row, index) => ({
+      rowNumber: index + 2,
+      cells: columns.map(
+        (_, columnIndex) =>
+          normalizeCsvCell(row[columnIndex])
+      ),
+      isCitationHighlighted: (() => {
+        const normalizedRow = normalizeCsvRow(row);
+
+        if (citationRowKeys.has(normalizedRow)) {
+          return true;
+        }
+
+        const meaningfulCells = row
+          .map(normalizeCsvCell)
+          .filter(isLikelyUsefulCsvCell);
+        const matchedCells = meaningfulCells.filter((cell) =>
+          normalizedCitationText.includes(
+            cell.toLowerCase()
+          )
+        );
+        const contentCells = meaningfulCells.filter(
+          (cell) => !isNumericCsvCell(cell)
+        );
+        const matchedContentCells = contentCells.filter(
+          (cell) =>
+            normalizedCitationText.includes(
+              cell.toLowerCase()
+            )
+        );
+
+        return (
+          meaningfulCells.length > 0 &&
+          (matchedCells.length >=
+            Math.min(2, meaningfulCells.length) ||
+            matchedContentCells.length >= 1)
+        );
+      })(),
+      highlightedColumnIndexes: columns
+        .map((_, columnIndex) => columnIndex)
+        .filter((columnIndex) => {
+          const header = columns[columnIndex];
+          const value = normalizeCsvCell(row[columnIndex]);
+
+          return (
+            isLikelyUsefulCsvCell(value) &&
+            normalizedCitationText.includes(
+              value.toLowerCase()
+            ) &&
+            (isLikelyUsefulCsvCell(header) ||
+              !isNumericCsvCell(value))
+          );
+        }),
+    })),
+    isTruncated: false,
+  };
+}
+
+function isNumericCsvCell(value) {
+  return /^[-+]?\d[\d,.]*%?$/.test(
+    normalizeCsvCell(value)
   );
 }
 
-function renderTextCitationSource(activeCitationSource) {
-  return (
-    <p className="citation-source-text">
-      {activeCitationSource.parts.length > 0
-        ? activeCitationSource.parts.map(
-            (part, index) =>
-              part.isHighlighted ? (
-                <mark key={index}>{part.text}</mark>
-              ) : (
-                <span key={index}>{part.text}</span>
-              )
-          )
-        : "Source text unavailable."}
-    </p>
-  );
+function getCitationEvidenceText(citation) {
+  return [
+    citation?.text,
+    citation?.answerText,
+  ]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 function getMentionQuery(input) {
@@ -762,6 +696,16 @@ function ChatTab() {
   const [chatError, setChatError] = useState("");
   const [activeCitation, setActiveCitation] =
     useState(null);
+  const [citationPreviewState, setCitationPreviewState] =
+    useState({
+      type: "text",
+      isLoading: false,
+      error: "",
+      pages: [],
+      table: null,
+      html: "",
+      fileUrl: "",
+    });
   const [conversationPendingDelete, setConversationPendingDelete] =
     useState(null);
   const [editingConversationId, setEditingConversationId] =
@@ -808,16 +752,30 @@ function ChatTab() {
       selectedMentionDocuments,
     ]
   );
-  const activeCitationSource = useMemo(
-    () =>
-      activeCitation
-        ? getHighlightedSourceParts(activeCitation)
-        : {
-            answerContext: "",
-            parts: [],
-          },
-    [activeCitation]
-  );
+  const activeCitationDocument = useMemo(() => {
+    if (!activeCitation) {
+      return null;
+    }
+
+    return (
+      documents.find(
+        (document) =>
+          document.id === activeCitation.documentId
+      ) ?? {
+        id: activeCitation.documentId,
+        name:
+          activeCitation.documentName ??
+          "Cited document",
+        format: getDocumentFormatFromName(
+          activeCitation.documentName
+        ),
+        pages: activeCitation.pageNumber ?? 0,
+        size: "",
+        uploadedAt: "",
+        status: "ready",
+      }
+    );
+  }, [activeCitation, documents]);
 
   const filteredConversations = useMemo(
     () =>
@@ -923,6 +881,125 @@ function ChatTab() {
       isMounted = false;
     };
   }, [token, workspaceId]);
+
+  useEffect(() => {
+    let isActive = true;
+    let fileUrl = "";
+
+    async function loadCitationPreview() {
+      if (
+        !activeCitation?.documentId ||
+        !workspaceId ||
+        !token
+      ) {
+        setCitationPreviewState({
+          type: "text",
+          isLoading: false,
+          error: "",
+          pages: [],
+          table: null,
+          html: "",
+          fileUrl: "",
+        });
+        return;
+      }
+
+      setCitationPreviewState({
+        type: "text",
+        isLoading: true,
+        error: "",
+        pages: [],
+        table: null,
+        html: "",
+        fileUrl: "",
+      });
+
+      try {
+        const response = await getDocumentPreview(
+          workspaceId,
+          activeCitation.documentId,
+          token
+        );
+        const previewType =
+          response.preview?.type ?? "text";
+        let previewTable =
+          response.preview?.table ?? null;
+
+        if (previewType === "file") {
+          fileUrl = URL.createObjectURL(
+            await getDocumentFileBlob(
+              workspaceId,
+              activeCitation.documentId,
+              token
+            )
+          );
+        } else if (previewType === "table") {
+          const csvBlob = await getDocumentFileBlob(
+            workspaceId,
+            activeCitation.documentId,
+            token
+          );
+          const csvText = await csvBlob.text();
+
+          previewTable = createCsvPreviewTableFromText({
+            csvText,
+            citationText:
+              getCitationEvidenceText(activeCitation),
+          });
+        }
+
+        if (isActive) {
+          setCitationPreviewState({
+            type: previewType,
+            isLoading: false,
+            error: "",
+            pages: Array.isArray(
+              response.preview?.pages
+            )
+              ? response.preview.pages
+              : [],
+            table: previewTable,
+            html: response.preview?.html ?? "",
+            fileUrl,
+          });
+        } else if (fileUrl) {
+          URL.revokeObjectURL(fileUrl);
+        }
+      } catch (error) {
+        if (isActive) {
+          setCitationPreviewState({
+            type: "text",
+            isLoading: false,
+            error:
+              error.message ||
+              "Unable to load citation preview.",
+            pages: [],
+            table: null,
+            html: "",
+            fileUrl: "",
+          });
+        }
+      }
+    }
+
+    loadCitationPreview();
+
+    return () => {
+      isActive = false;
+
+      if (fileUrl) {
+        URL.revokeObjectURL(fileUrl);
+      }
+    };
+  }, [
+    activeCitation?.documentId,
+    activeCitation?.label,
+    activeCitation?.pageNumber,
+    activeCitation?.text,
+    activeCitation?.answerText,
+    workspaceId,
+    token,
+  ]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1725,47 +1802,26 @@ function ChatTab() {
         </div>
 
         {activeCitation && (
-          <aside className="citation-popover">
-            <header>
-              <div>
-                <strong>
-                  {getCitationChipLabel(
-                    activeCitation
-                  )}
-                </strong>
-                {activeCitation.sectionHeader && (
-                  <span>
-                    {activeCitation.sectionHeader}
-                  </span>
-                )}
-              </div>
-              <button
-                className="icon-button"
-                type="button"
-                aria-label="Close citation"
-                onClick={() =>
-                  setActiveCitation(null)
-                }
-              >
-                <X size={16} />
-              </button>
-            </header>
-            {activeCitationSource.answerContext && (
-              <p className="citation-answer-context">
-                {activeCitationSource.answerContext}
-              </p>
-            )}
-            {isCsvCitation(activeCitation)
-              ? renderCsvCitationSource(
-                  activeCitation
-                ) ??
-                renderTextCitationSource(
-                  activeCitationSource
-                )
-              : renderTextCitationSource(
-                  activeCitationSource
-                )}
-          </aside>
+          <PreviewPanel
+            citation={activeCitation}
+            citationHighlightText={
+              getCitationEvidenceText(activeCitation)
+            }
+            document={activeCitationDocument}
+            error={citationPreviewState.error}
+            fileUrl={citationPreviewState.fileUrl}
+            html={citationPreviewState.html}
+            initialPageNumber={
+              activeCitation.pageNumber
+            }
+            isLoading={
+              citationPreviewState.isLoading
+            }
+            pages={citationPreviewState.pages}
+            previewType={citationPreviewState.type}
+            table={citationPreviewState.table}
+            onClose={() => setActiveCitation(null)}
+          />
         )}
 
         <form

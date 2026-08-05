@@ -240,6 +240,48 @@ export function reprocessDocument(
   );
 }
 
+export function getDocumentSummaries(
+  workspaceId,
+  documentId,
+  token
+) {
+  return request(
+    `/workspaces/${workspaceId}/documents/${documentId}/summaries`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
+export function summarizeDocument(
+  workspaceId,
+  documentId,
+  {
+    level,
+    force,
+  },
+  token
+) {
+  return request(
+    `/workspaces/${workspaceId}/documents/${documentId}/summarize`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        level,
+        ...(force !== undefined && {
+          force,
+        }),
+      }),
+    }
+  );
+}
+
 export function searchWorkspaceChunks(
   workspaceId,
   {

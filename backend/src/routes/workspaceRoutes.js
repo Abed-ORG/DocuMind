@@ -24,8 +24,10 @@ import {
   deleteDocument,
   getDocumentFile,
   getDocumentPreview,
+  getDocumentSummaries,
   getDocuments,
   reprocessDocument,
+  summarizeDocument,
   updateDocument,
 } from "../controllers/documentController.js";
 
@@ -35,6 +37,7 @@ import { validateRequest } from "../middleware/validateRequest.js";
 
 import {
   documentIdValidator,
+  summarizeDocumentValidators,
   updateDocumentValidators,
 } from "../validators/documentValidators.js";
 import {
@@ -108,6 +111,23 @@ router.get(
   documentIdValidator,
   validateRequest,
   getDocumentFile
+);
+
+router.get(
+  "/:id/documents/:documentId/summaries",
+  workspaceIdValidator,
+  documentIdValidator,
+  validateRequest,
+  getDocumentSummaries
+);
+
+router.post(
+  "/:id/documents/:documentId/summarize",
+  workspaceIdValidator,
+  documentIdValidator,
+  summarizeDocumentValidators,
+  validateRequest,
+  summarizeDocument
 );
 
 router.post(
