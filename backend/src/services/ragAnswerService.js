@@ -1,7 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
 
 import { env } from "../config/env.js";
-import { buildRagPrompt } from "./ragPromptService.js";
+import {
+  buildRagPrompt,
+  buildStructuredExtractionPrompt,
+} from "./ragPromptService.js";
 import { searchWorkspaceChunks } from "./vectorSearchService.js";
 
 const followUpPattern =
@@ -121,6 +124,94 @@ async function withRetry(operation, options = {}) {
 
 function getResponseText(response) {
   return String(response?.text ?? "").trim();
+}
+
+function stripJsonCodeFence(text) {
+  return String(text ?? "")
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+}
+
+function parseJsonObject(text) {
+  const normalizedText = stripJsonCodeFence(text);
+
+  try {
+    return JSON.parse(normalizedText);
+  } catch {
+    const firstBrace = normalizedText.indexOf("{");
+    const lastBrace = normalizedText.lastIndexOf("}");
+
+    if (firstBrace === -1 || lastBrace === -1) {
+      throw new Error("The AI did not return valid JSON.");
+    }
+
+    return JSON.parse(
+      normalizedText.slice(firstBrace, lastBrace + 1)
+    );
+  }
+}
+
+function normalizeExtractionValue(value, maxLength = 1000) {
+  const normalizedValue = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return normalizedValue.length > maxLength
+    ? `${normalizedValue.slice(0, maxLength).trim()}...`
+    : normalizedValue;
+}
+
+function normalizeExtractionRows(rows) {
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+
+  return rows
+    .map((row) => ({
+      field: normalizeExtractionValue(row?.field, 180),
+      value: normalizeExtractionValue(row?.value),
+      type: normalizeExtractionValue(row?.type, 120),
+      source: normalizeExtractionValue(row?.source, 260),
+      documentName: normalizeExtractionValue(
+        row?.documentName,
+        255
+      ),
+      pageNumber:
+        Number.isInteger(Number(row?.pageNumber)) &&
+        Number(row.pageNumber) > 0
+          ? Number(row.pageNumber)
+          : null,
+      chunkIndex:
+        Number.isInteger(Number(row?.chunkIndex)) &&
+        Number(row.chunkIndex) >= 0
+          ? Number(row.chunkIndex)
+          : null,
+      evidence: normalizeExtractionValue(
+        row?.evidence,
+        1200
+      ),
+    }))
+    .filter(
+      (row) =>
+        row.field ||
+        row.value ||
+        row.type ||
+        row.source
+    );
+}
+
+function normalizeExtractionTable(parsedJson) {
+  return {
+    columns: [
+      "field",
+      "value",
+      "type",
+      "source",
+    ],
+    rows: normalizeExtractionRows(parsedJson?.rows),
+  };
 }
 
 function getResponseFinishReason(response) {
@@ -417,5 +508,130 @@ export async function answerWorkspaceQuestion({
     question,
     sourceChunks,
     conversationHistory,
+  });
+}
+
+export async function generateStructuredExtraction({
+  prompt,
+  sourceChunks = [],
+  model,
+  timeoutMs,
+  retry,
+  temperature = 0.1,
+  maxOutputTokens = 1800,
+} = {}) {
+  const extractionPrompt =
+    buildStructuredExtractionPrompt({
+      prompt,
+      sourceChunks,
+    });
+  const client = getGeminiClient();
+  const selectedModel =
+    model ?? env.geminiGenerativeModel;
+  let response;
+
+  try {
+    response = await withRetry(
+      () =>
+        withTimeout(
+          client.models.generateContent({
+            model: selectedModel,
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text: extractionPrompt.userPrompt,
+                  },
+                ],
+              },
+            ],
+            config: {
+              systemInstruction:
+                extractionPrompt.systemInstruction,
+              temperature,
+              maxOutputTokens,
+            },
+          }),
+          timeoutMs ?? env.geminiGenerativeTimeoutMs
+        ),
+      retry
+    );
+  } catch (error) {
+    throw createIncompleteAnswerError({
+      message:
+        "The AI provider could not complete the extraction. Please retry.",
+      finishReason:
+        error?.status === 429
+          ? "RATE_LIMIT"
+          : error?.status ??
+            error?.code ??
+            error?.name ??
+            "REQUEST_FAILED",
+    });
+  }
+
+  const answer = getResponseText(response);
+
+  assertCompleteAnswer(response, answer);
+
+  let table;
+
+  try {
+    table = normalizeExtractionTable(
+      parseJsonObject(answer)
+    );
+  } catch (error) {
+    const incompleteError =
+      createIncompleteAnswerError({
+        message:
+          "The AI returned extraction data that could not be parsed. Please retry.",
+        finishReason: "INVALID_JSON",
+      });
+
+    incompleteError.cause = error;
+    throw incompleteError;
+  }
+
+  return {
+    ...table,
+    rawJson: answer,
+    sources: extractionPrompt.sources,
+    model: selectedModel,
+  };
+}
+
+export async function extractWorkspaceFields({
+  workspaceId,
+  prompt,
+  limit = 10,
+  documentIds,
+} = {}) {
+  const sourceChunks = await searchWorkspaceChunks({
+    workspaceId,
+    query: prompt,
+    limit,
+    documentIds,
+  });
+
+  if (sourceChunks.length === 0) {
+    return {
+      columns: [
+        "field",
+        "value",
+        "type",
+        "source",
+      ],
+      rows: [],
+      rawJson:
+        "{\"columns\":[\"field\",\"value\",\"type\",\"source\"],\"rows\":[]}",
+      sources: [],
+      model: env.geminiGenerativeModel,
+    };
+  }
+
+  return generateStructuredExtraction({
+    prompt,
+    sourceChunks,
   });
 }

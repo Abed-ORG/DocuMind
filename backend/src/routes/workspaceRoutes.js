@@ -17,6 +17,7 @@ import {
 } from "../controllers/conversationController.js";
 import {
   answerWorkspace,
+  extractWorkspace,
   searchWorkspace,
 } from "../controllers/searchController.js";
 import {
@@ -49,6 +50,7 @@ import {
 import {
   answerWorkspaceQuestionValidators,
   createWorkspaceValidators,
+  extractWorkspaceFieldsValidators,
   searchWorkspaceValidators,
   updateWorkspaceValidators,
   workspaceIdValidator,
@@ -152,6 +154,14 @@ router.post(
   answerWorkspaceQuestionValidators,
   validateRequest,
   answerWorkspace
+);
+
+router.post(
+  "/:id/extract",
+  workspaceIdValidator,
+  extractWorkspaceFieldsValidators,
+  validateRequest,
+  extractWorkspace
 );
 
 router

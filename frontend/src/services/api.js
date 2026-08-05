@@ -334,6 +334,32 @@ export function answerWorkspaceQuestion(
   });
 }
 
+export function extractWorkspaceFields(
+  workspaceId,
+  {
+    prompt,
+    limit,
+    documentIds,
+  },
+  token
+) {
+  return request(`/workspaces/${workspaceId}/extract`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      prompt,
+      ...(limit !== undefined && {
+        limit,
+      }),
+      ...(documentIds !== undefined && {
+        documentIds,
+      }),
+    }),
+  });
+}
+
 export function getConversations(workspaceId, token) {
   return request(
     `/workspaces/${workspaceId}/conversations`,

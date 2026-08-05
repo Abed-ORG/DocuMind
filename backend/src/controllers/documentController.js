@@ -40,6 +40,9 @@ const pipelineRetryOptions = {
   baseDelayMs: 500,
 };
 
+const staleProcessingDocumentMs =
+  5 * 60 * 1000;
+
 const extensionToFormat = {
   ".pdf": "PDF",
   ".docx": "DOCX",
@@ -1126,10 +1129,43 @@ async function chunkDocumentText(document) {
 }
 
 function getProcessingErrorMessage(error) {
+  const message = String(error?.message ?? "");
+
+  try {
+    const parsedMessage = JSON.parse(message);
+    const providerMessage =
+      parsedMessage?.error?.message;
+
+    if (providerMessage) {
+      return providerMessage.slice(0, 1000);
+    }
+  } catch {
+    // Fall through to the plain error message.
+  }
+
   return (
-    error?.message ||
+    message ||
     "Document processing failed."
   ).slice(0, 1000);
+}
+
+function isStaleProcessingDocument(document) {
+  if (document.status !== "processing") {
+    return false;
+  }
+
+  const updatedAt = new Date(
+    document.updatedAt
+  ).getTime();
+
+  if (!Number.isFinite(updatedAt)) {
+    return false;
+  }
+
+  return (
+    Date.now() - updatedAt >
+    staleProcessingDocumentMs
+  );
 }
 
 async function processUploadedDocument(documentId) {
@@ -1722,7 +1758,10 @@ export async function reprocessDocument(req, res, next) {
       });
     }
 
-    if (document.status === "processing") {
+    if (
+      document.status === "processing" &&
+      !isStaleProcessingDocument(document)
+    ) {
       return res.status(409).json({
         success: false,
         message:
@@ -1730,11 +1769,14 @@ export async function reprocessDocument(req, res, next) {
       });
     }
 
-    if (document.status !== "failed") {
+    if (
+      document.status !== "failed" &&
+      !isStaleProcessingDocument(document)
+    ) {
       return res.status(409).json({
         success: false,
         message:
-          "Only failed documents can be reprocessed.",
+          "Only failed or stale processing documents can be reprocessed.",
       });
     }
 

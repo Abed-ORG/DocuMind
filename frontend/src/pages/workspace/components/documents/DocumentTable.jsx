@@ -27,6 +27,25 @@ const processingStageLabels = {
   embedding: "Embedding",
 };
 
+const staleProcessingDocumentMs =
+  5 * 60 * 1000;
+
+function isStaleProcessingDocument(document) {
+  if (document.status !== "processing") {
+    return false;
+  }
+
+  const updatedAt = new Date(
+    document.updatedAt
+  ).getTime();
+
+  return (
+    Number.isFinite(updatedAt) &&
+    Date.now() - updatedAt >
+      staleProcessingDocumentMs
+  );
+}
+
 function getDocumentStatusLabel(document) {
   if (document.status !== "processing") {
     return (
@@ -63,6 +82,9 @@ function DocumentActionsMenu({
     useState({ top: 0, left: 0 });
   const buttonRef = useRef(null);
   const menuRef = useRef(null);
+  const canReprocess =
+    document.status === "failed" ||
+    isStaleProcessingDocument(document);
 
   const updateMenuPosition = useCallback(() => {
     if (!buttonRef.current) {
@@ -74,7 +96,7 @@ function DocumentActionsMenu({
     const viewportPadding = 12;
     const menuWidth = 168;
     const estimatedMenuHeight =
-      document.status === "failed" ? 244 : 206;
+      canReprocess ? 244 : 206;
     const gap = 8;
 
     const left = Math.min(
@@ -96,7 +118,7 @@ function DocumentActionsMenu({
         : preferredTop;
 
     setMenuPosition({ top, left });
-  }, [document.status]);
+  }, [canReprocess]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -228,7 +250,7 @@ function DocumentActionsMenu({
           >
             Extract
           </button>
-          {document.status === "failed" && (
+          {canReprocess && (
             <button
               type="button"
               role="menuitem"
@@ -237,7 +259,9 @@ function DocumentActionsMenu({
               }
             >
               <RotateCcw size={15} />
-              Reprocess
+              {document.status === "processing"
+                ? "Restart processing"
+                : "Reprocess"}
             </button>
           )}
           <button

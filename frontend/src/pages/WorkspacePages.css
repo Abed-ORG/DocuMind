@@ -1734,6 +1734,45 @@
   font-weight: 750;
 }
 
+.extraction-focus {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 4px 5px 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(15, 118, 110, 0.2);
+  border-radius: var(--radius-badge);
+  color: #0f766e;
+  background: #ccfbf1;
+  font-size: 0.8rem;
+  font-weight: 780;
+}
+
+.extraction-focus span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.extraction-focus button {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  color: #115e59;
+  background: transparent;
+}
+
+.extraction-focus button:hover {
+  background: rgba(15, 118, 110, 0.12);
+}
+
 .extract-control > div {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -1755,6 +1794,22 @@
   background: transparent;
   font: inherit;
   text-transform: inherit;
+}
+
+.extraction-status {
+  margin-top: 14px;
+  min-height: 42px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #fecdd3;
+  border-radius: var(--radius-card);
+  color: #b42336;
+  background: #fff1f2;
+  font-size: 0.9rem;
+  font-weight: 750;
+  line-height: 1.35;
 }
 
 .preview-modal-backdrop {
