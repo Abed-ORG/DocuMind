@@ -13,6 +13,7 @@ import {
   getDocumentPreview,
   getDocuments,
   reprocessDocument as reprocessDocumentRequest,
+  summarizeDocument as summarizeDocumentRequest,
   updateDocument as updateDocumentRequest,
   uploadDocument,
 } from "../../../services/api";
@@ -31,7 +32,6 @@ import {
 } from "../components/intelligence";
 import {
   extractionRows,
-  summaryCopy,
 } from "../data/workspaceData";
 import {
   createUploadId,
@@ -140,6 +140,7 @@ function DocumentsTab() {
     direction: "asc",
   });
 
+  const summaryRef = useRef(null);
   const extractionRef = useRef(null);
   const duplicateDecisionResolverRef = useRef(null);
 
@@ -412,28 +413,99 @@ function DocumentsTab() {
   );
 
   useEffect(() => {
-    if (!summaryState?.isLoading) {
-      return undefined;
+    let isActive = true;
+
+    async function loadSummary() {
+      if (
+        !summaryState?.isLoading ||
+        !summaryState.documentId ||
+        !summaryState.level ||
+        !workspaceId ||
+        !token
+      ) {
+        return;
+      }
+
+      try {
+        const response =
+          await summarizeDocumentRequest(
+            workspaceId,
+            summaryState.documentId,
+            {
+              level: summaryState.level,
+              force: summaryState.force,
+            },
+            token
+          );
+
+        if (!isActive) {
+          return;
+        }
+
+        setSummaryState((current) => {
+          if (
+            !current ||
+            current.documentId !==
+              summaryState.documentId ||
+            current.level !== summaryState.level ||
+            current.requestKey !==
+              summaryState.requestKey
+          ) {
+            return current;
+          }
+
+          return {
+            ...current,
+            cached: Boolean(response.cached),
+            isLoading: false,
+            force: false,
+            error: "",
+            text: response.summary?.content ?? "",
+          };
+        });
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        setSummaryState((current) => {
+          if (
+            !current ||
+            current.documentId !==
+              summaryState.documentId ||
+            current.level !== summaryState.level ||
+            current.requestKey !==
+              summaryState.requestKey
+          ) {
+            return current;
+          }
+
+          return {
+            ...current,
+            cached: false,
+            isLoading: false,
+            force: false,
+            error:
+              error.message ||
+              "Unable to generate summary.",
+            text: "",
+          };
+        });
+      }
     }
 
-    const timer = window.setTimeout(() => {
-      setSummaryState((current) =>
-        current
-          ? {
-              ...current,
-              isLoading: false,
-              cached: false,
-              text: summaryCopy[current.level],
-            }
-          : current
-      );
-    }, 750);
+    loadSummary();
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      isActive = false;
+    };
   }, [
     summaryState?.documentId,
     summaryState?.level,
     summaryState?.isLoading,
+    summaryState?.requestKey,
+    workspaceId,
+    token,
   ]);
 
   useEffect(() => {
@@ -477,12 +549,37 @@ function DocumentsTab() {
     []
   );
 
+  useEffect(() => {
+    if (!summaryState?.documentId) {
+      return undefined;
+    }
+
+    const animationFrameId =
+      window.requestAnimationFrame(() => {
+        summaryRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+    };
+  }, [
+    summaryState?.documentId,
+    summaryState?.scrollKey,
+  ]);
+
   function openSummary(document) {
     setSummaryState({
       documentId: document.id,
       level: "executive",
       cached: false,
       isLoading: true,
+      force: false,
+      requestKey: 0,
+      scrollKey: Date.now(),
+      error: "",
       text: "",
     });
   }
@@ -498,6 +595,9 @@ function DocumentsTab() {
         level,
         cached: false,
         isLoading: true,
+        force: false,
+        requestKey: current.requestKey + 1,
+        error: "",
         text: "",
       };
     });
@@ -510,6 +610,9 @@ function DocumentsTab() {
             ...current,
             cached: false,
             isLoading: true,
+            force: true,
+            requestKey: current.requestKey + 1,
+            error: "",
             text: "",
           }
         : current
@@ -703,6 +806,11 @@ function DocumentsTab() {
       setPreviewDocument((current) =>
         current?.id === updatedDocument.id
           ? updatedDocument
+          : current
+      );
+      setSummaryState((current) =>
+        current?.documentId === updatedDocument.id
+          ? null
           : current
       );
     } catch (error) {
@@ -1134,6 +1242,7 @@ function DocumentsTab() {
       )}
 
       <SummaryPanel
+        panelRef={summaryRef}
         summaryState={summaryState}
         document={summaryDocument}
         onLevelChange={handleLevelChange}

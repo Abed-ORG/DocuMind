@@ -1610,10 +1610,39 @@
   background: #f8fafc;
 }
 
-.summary-result p {
+.summary-content {
+  display: grid;
+  gap: 18px;
+}
+
+.summary-section {
+  display: grid;
+  gap: 8px;
+}
+
+.summary-section h4 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 0.98rem;
+  line-height: 1.35;
+}
+
+.summary-result p,
+.summary-result li {
   margin: 0;
   color: var(--color-muted);
   line-height: 1.65;
+}
+
+.summary-result ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.summary-result .summary-error {
+  color: #b42336;
 }
 
 .loading-row {
@@ -1805,6 +1834,8 @@
 .preview-panel-file .preview-content {
   padding: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .preview-file-close {
@@ -1879,6 +1910,15 @@
   white-space: pre-wrap;
 }
 
+.preview-text-block mark {
+  padding: 2px 4px;
+  border-radius: 5px;
+  color: #713f12;
+  background: #fde68a;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
 .preview-file-frame,
 .preview-html-frame {
   width: 100%;
@@ -1891,9 +1931,126 @@
 }
 
 .preview-panel-file .preview-file-frame {
+  flex: 1;
   border: 0;
   min-height: 0;
   border-radius: var(--radius-card);
+}
+
+.preview-panel-citation-file .preview-content {
+  padding: 0;
+}
+
+.citation-file-split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 34%);
+  background: #111827;
+}
+
+.citation-file-document {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.citation-file-used-text {
+  min-width: 0;
+  min-height: 0;
+  padding: 22px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  overflow: auto;
+  border-left: 1px solid rgba(148, 163, 184, 0.28);
+  color: #475569;
+  background: #ffffff;
+}
+
+.citation-file-used-text header,
+.preview-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.citation-file-used-text header {
+  justify-content: space-between;
+}
+
+.preview-header-actions {
+  flex: 0 0 auto;
+}
+
+.citation-file-used-text h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.citation-file-used-text mark {
+  padding: 2px 4px;
+  border-radius: 5px;
+  color: #713f12;
+  background: #fde68a;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.formatted-cited-text {
+  display: grid;
+  gap: 18px;
+  color: #475569;
+  font-size: 0.95rem;
+}
+
+.cited-text-heading-group {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.cited-text-heading-group .badge {
+  width: auto;
+}
+
+.cited-text-heading-group h4 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.cited-text-block {
+  display: grid;
+  gap: 8px;
+}
+
+.cited-text-block h5 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.cited-text-block p {
+  margin: 0;
+  line-height: 1.65;
+}
+
+.csv-preview-table tr.is-citation-highlight td {
+  color: #713f12;
+  background: #fde68a;
+}
+
+.csv-preview-table th.is-citation-highlight,
+.csv-preview-table td.is-citation-highlight {
+  color: #713f12;
+  background: #fde68a;
 }
 
 .preview-truncated-note {
@@ -1999,6 +2156,10 @@
 .csv-preview-table tbody .csv-row-number {
   z-index: 1;
   font-weight: 760;
+}
+
+.csv-preview-table tr.is-citation-highlight .csv-row-number {
+  color: #713f12;
 }
 
 @keyframes previewPanelIn {
@@ -2425,133 +2586,6 @@
 
 .typing-indicator span:nth-child(3) {
   animation-delay: 0.28s;
-}
-
-.citation-popover {
-  position: absolute;
-  right: 18px;
-  bottom: 86px;
-  width: min(520px, calc(100% - 36px));
-  max-height: min(520px, calc(100% - 120px));
-  padding: 14px;
-  display: grid;
-  gap: 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  background: #ffffff;
-  box-shadow: var(--shadow-md);
-  overflow: hidden;
-}
-
-.citation-popover header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.citation-popover header div {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.citation-popover header strong,
-.citation-popover header span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.citation-popover header strong {
-  color: var(--color-text);
-}
-
-.citation-popover header span {
-  color: var(--color-subtle);
-  font-size: 0.78rem;
-  font-weight: 740;
-}
-
-.citation-answer-context {
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid rgba(79, 70, 229, 0.12);
-  border-radius: var(--radius-button);
-  color: var(--color-muted);
-  background: #eef2ff;
-  font-size: 0.84rem;
-  line-height: 1.5;
-}
-
-.citation-source-text {
-  margin: 0;
-  min-height: 0;
-  max-height: 330px;
-  overflow: auto;
-  color: var(--color-muted);
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-.citation-source-text mark {
-  padding: 2px 3px;
-  border-radius: 5px;
-  color: #713f12;
-  background: #fde68a;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-}
-
-.citation-csv-scroll {
-  min-height: 0;
-  max-height: 330px;
-  overflow: auto;
-  border: 1px solid rgba(148, 163, 184, 0.36);
-  border-radius: var(--radius-card);
-  background: #ffffff;
-}
-
-.citation-csv-table {
-  min-width: 100%;
-  width: max-content;
-  border-collapse: collapse;
-  font-size: 0.82rem;
-  line-height: 1.45;
-}
-
-.citation-csv-table th,
-.citation-csv-table td {
-  padding: 8px 10px;
-  border-right: 1px solid rgba(148, 163, 184, 0.28);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
-  color: var(--color-muted);
-  text-align: left;
-  white-space: nowrap;
-}
-
-.citation-csv-table th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  color: var(--color-text);
-  background: #f8fafc;
-  font-weight: 850;
-}
-
-.citation-csv-row-number {
-  position: sticky;
-  left: 0;
-  z-index: 2;
-  width: 38px;
-  min-width: 38px;
-  color: var(--color-subtle);
-  background: #f8fafc;
-  text-align: right;
-}
-
-.citation-csv-table thead .citation-csv-row-number {
-  z-index: 3;
 }
 
 .chat-input-bar {
@@ -3106,6 +3140,17 @@
   .preview-file-frame,
   .preview-html-frame {
     min-height: 420px;
+  }
+
+  .citation-file-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .citation-file-used-text {
+    max-height: 220px;
+    border-top: 1px solid rgba(148, 163, 184, 0.28);
+    border-left: 0;
   }
 
   .conversation-items {

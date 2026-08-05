@@ -46,7 +46,7 @@ export const maxUploadSizeLabel = "10MB";
 
 export const summaryLevels = [
   {
-    key: "oneLiner",
+    key: "one-liner",
     label: "One-liner",
   },
   {
@@ -58,15 +58,6 @@ export const summaryLevels = [
     label: "Detailed",
   },
 ];
-
-export const summaryCopy = {
-  oneLiner:
-    "The document shows rising demand for cited AI answers in regulated document workflows.",
-  executive:
-    "The document argues that document intelligence tools are moving from simple search toward source-grounded AI workspaces. The strongest demand comes from teams that need answers, summaries, comparisons, and structured extraction while preserving citation traceability.",
-  detailed:
-    "The document frames document intelligence as an operational layer for high-volume review work. It highlights a shift from unmanaged file search to workspace-based analysis, then connects that shift to buyer requirements around auditability, citations, extraction quality, and cross-document comparison. The strongest adoption signals come from legal, finance, policy, and research teams that need evidence they can inspect.",
-};
 
 export const extractionRows = [
   {

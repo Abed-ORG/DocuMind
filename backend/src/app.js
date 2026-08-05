@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 
 import { env } from "./config/env.js";
+import documentRoutes from "./routes/documentRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import healthRoutes from "./routes/healthRoutes.js";
 import workspaceRoutes from "./routes/workspaceRoutes.js";
@@ -31,6 +32,7 @@ app.get("/", (_req, res) => {
 
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/documents", documentRoutes);
 app.use("/api/workspaces", workspaceRoutes);
 
 app.use(notFound);

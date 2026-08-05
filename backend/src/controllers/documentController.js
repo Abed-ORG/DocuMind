@@ -13,6 +13,11 @@ import User from "../models/User.js";
 import Workspace from "../models/Workspace.js";
 import { replaceDocumentChunks } from "../services/chunkingService.js";
 import { embedDocumentChunks } from "../services/embeddingService.js";
+import {
+  invalidateDocumentSummaries,
+  listDocumentSummaries,
+  summarizeDocument as summarizeDocumentWithCache,
+} from "../services/summaryService.js";
 import { cascadeDeleteDocumentData } from "../services/workspaceCascadeService.js";
 
 const currentDirectory = path.dirname(
@@ -1198,9 +1203,14 @@ function enqueueDocumentProcessing(documentId) {
 }
 
 async function resetDocumentForReprocessing(document) {
-  await Chunk.deleteMany({
-    documentId: document._id,
-  });
+  await Promise.all([
+    Chunk.deleteMany({
+      documentId: document._id,
+    }),
+    invalidateDocumentSummaries({
+      documentId: document._id,
+    }),
+  ]);
 
   await updateDocumentProcessing({
     documentId: document._id,
@@ -1223,6 +1233,66 @@ async function findDocumentInWorkspace({
   return Document.findOne({
     _id: documentId,
     workspaceId,
+  });
+}
+
+async function findSummaryDocumentContext(req) {
+  if (req.params.id) {
+    const workspace =
+      await findWorkspaceForUser({
+        workspaceId: req.params.id,
+        userId: req.user._id,
+      });
+
+    if (!workspace) {
+      return {
+        missing: "workspace",
+      };
+    }
+
+    const document =
+      await findDocumentInWorkspace({
+        workspaceId: workspace._id,
+        documentId: req.params.documentId,
+      });
+
+    return {
+      workspace,
+      document,
+      missing: document ? "" : "document",
+    };
+  }
+
+  const document = await Document.findById(
+    req.params.documentId
+  );
+
+  if (!document) {
+    return {
+      missing: "document",
+    };
+  }
+
+  const workspace =
+    await findWorkspaceForUser({
+      workspaceId: document.workspaceId,
+      userId: req.user._id,
+    });
+
+  return {
+    workspace,
+    document: workspace ? document : null,
+    missing: workspace ? "" : "document",
+  };
+}
+
+function sendSummaryContextNotFound(res, missing) {
+  return res.status(404).json({
+    success: false,
+    message:
+      missing === "workspace"
+        ? "Workspace not found."
+        : "Document not found.",
   });
 }
 
@@ -1361,6 +1431,82 @@ export async function getDocumentFile(req, res, next) {
       });
     }
 
+    next(error);
+  }
+}
+
+export async function getDocumentSummaries(
+  req,
+  res,
+  next
+) {
+  try {
+    const {
+      workspace,
+      document,
+      missing,
+    } = await findSummaryDocumentContext(req);
+
+    if (missing) {
+      return sendSummaryContextNotFound(
+        res,
+        missing
+      );
+    }
+
+    const summaries =
+      await listDocumentSummaries({
+        documentId: document._id,
+        workspaceId: workspace._id,
+      });
+
+    return res.status(200).json({
+      success: true,
+      summaries,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function summarizeDocument(
+  req,
+  res,
+  next
+) {
+  try {
+    const {
+      document,
+      missing,
+    } = await findSummaryDocumentContext(req);
+
+    if (missing) {
+      return sendSummaryContextNotFound(
+        res,
+        missing
+      );
+    }
+
+    if (document.status !== "ready") {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Document must finish processing before summaries can be generated.",
+      });
+    }
+
+    const result =
+      await summarizeDocumentWithCache({
+        document,
+        level: req.body.level,
+        force: req.body.force,
+      });
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
     next(error);
   }
 }
