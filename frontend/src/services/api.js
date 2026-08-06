@@ -97,6 +97,32 @@ export function getWorkspace(workspaceId, token) {
   });
 }
 
+export function getWorkspaceAnalytics(
+  workspaceId,
+  days,
+  token
+) {
+  const searchParams = new URLSearchParams();
+
+  if (days !== undefined) {
+    searchParams.set("days", String(days));
+  }
+
+  const queryString = searchParams.toString();
+
+  return request(
+    `/workspaces/${workspaceId}/analytics${
+      queryString ? `?${queryString}` : ""
+    }`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
 export function createWorkspace(workspaceData, token) {
   return request("/workspaces", {
     method: "POST",

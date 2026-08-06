@@ -4,6 +4,7 @@ import {
   createWorkspace,
   deleteWorkspace,
   getWorkspace,
+  getWorkspaceAnalytics,
   getWorkspaces,
   updateWorkspace,
 } from "../controllers/workspaceController.js";
@@ -51,6 +52,7 @@ import {
   createWorkspaceValidators,
   searchWorkspaceValidators,
   updateWorkspaceValidators,
+  workspaceAnalyticsValidators,
   workspaceIdValidator,
 } from "../validators/workspaceValidators.js";
 
@@ -152,6 +154,14 @@ router.post(
   answerWorkspaceQuestionValidators,
   validateRequest,
   answerWorkspace
+);
+
+router.get(
+  "/:id/analytics",
+  workspaceIdValidator,
+  workspaceAnalyticsValidators,
+  validateRequest,
+  getWorkspaceAnalytics
 );
 
 router
