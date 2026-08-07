@@ -504,6 +504,7 @@ function DocumentsTab() {
     summaryState?.level,
     summaryState?.isLoading,
     summaryState?.requestKey,
+    summaryState?.force,
     workspaceId,
     token,
   ]);

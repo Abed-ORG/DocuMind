@@ -2,10 +2,10 @@ import { useRef } from "react";
 import {
   AlertCircle,
   FileText,
-  Loader2,
   X,
 } from "lucide-react";
 
+import { PreviewSkeleton } from "../../../../components/Skeleton";
 import { statusLabels } from "../../data/workspaceData";
 
 const highlightStopWords = new Set([
@@ -781,14 +781,7 @@ function PreviewPanel({
 
         <div className="preview-content" ref={previewContentRef}>
           {isLoading ? (
-            <div className="preview-state">
-              <Loader2 className="spinner" size={34} />
-              <h3>Loading preview</h3>
-              <p>
-                Preparing the most faithful preview
-                available for this document.
-              </p>
-            </div>
+            <PreviewSkeleton />
           ) : error ? (
             <div className="preview-state preview-error">
               <AlertCircle size={34} />

@@ -5,6 +5,7 @@ import {
 } from "react";
 
 import { useAuth } from "../../context/AuthContext";
+import { DashboardSkeleton } from "../../components/Skeleton";
 import {
   createWorkspace,
   deleteWorkspace as deleteWorkspaceRequest,
@@ -285,33 +286,42 @@ function WorkspacesPage() {
           onCreateWorkspace={openCreateModal}
         />
 
-        <MetricStrip
-          workspaceCount={workspaces.length}
-          totals={totals}
-        />
-
         {isLoading ? (
-          <DashboardState type="loading" />
+          <DashboardSkeleton />
         ) : loadError ? (
-          <DashboardState
-            type="error"
-            error={loadError}
-            onRetry={() =>
-              setReloadKey((current) => current + 1)
-            }
-          />
-        ) : workspaces.length === 0 ? (
-          <DashboardState
-            type="empty"
-            onCreateWorkspace={openCreateModal}
-          />
+          <>
+            <MetricStrip
+              workspaceCount={workspaces.length}
+              totals={totals}
+            />
+            <DashboardState
+              type="error"
+              error={loadError}
+              onRetry={() =>
+                setReloadKey((current) => current + 1)
+              }
+            />
+          </>
         ) : (
-          <WorkspaceGrid
-            workspaces={workspaces}
-            onCreateWorkspace={openCreateModal}
-            onEditWorkspace={openEditModal}
-            onDeleteWorkspace={openDeleteDialog}
-          />
+          <>
+            <MetricStrip
+              workspaceCount={workspaces.length}
+              totals={totals}
+            />
+            {workspaces.length === 0 ? (
+              <DashboardState
+                type="empty"
+                onCreateWorkspace={openCreateModal}
+              />
+            ) : (
+              <WorkspaceGrid
+                workspaces={workspaces}
+                onCreateWorkspace={openCreateModal}
+                onEditWorkspace={openEditModal}
+                onDeleteWorkspace={openDeleteDialog}
+              />
+            )}
+          </>
         )}
       </div>
 

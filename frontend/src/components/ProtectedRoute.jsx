@@ -5,6 +5,7 @@ import {
 } from "react-router";
 
 import { useAuth } from "../context/AuthContext";
+import { AuthGateSkeleton } from "./Skeleton";
 
 function ProtectedRoute() {
   const location = useLocation();
@@ -15,11 +16,7 @@ function ProtectedRoute() {
   } = useAuth();
 
   if (isLoading) {
-    return (
-      <section className="page">
-        <p>Checking your session...</p>
-      </section>
-    );
+    return <AuthGateSkeleton />;
   }
 
   if (!isAuthenticated) {

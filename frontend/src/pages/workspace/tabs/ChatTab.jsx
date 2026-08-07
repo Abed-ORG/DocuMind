@@ -8,6 +8,7 @@ import { useOutletContext } from "react-router";
 import {
   AlertTriangle,
   Bot,
+  Plus,
   Search,
   Send,
   Trash2,
@@ -15,6 +16,10 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../../../context/AuthContext";
+import {
+  ChatMessagesSkeleton,
+  ConversationListSkeleton,
+} from "../../../components/Skeleton";
 import {
   answerWorkspaceQuestion,
   createConversation,
@@ -997,6 +1002,7 @@ function ChatTab() {
     activeCitation?.pageNumber,
     activeCitation?.text,
     activeCitation?.answerText,
+    activeCitation,
     workspaceId,
     token,
   ]);
@@ -1081,6 +1087,20 @@ function ChatTab() {
     },
     []
   );
+
+  useEffect(() => {
+    const input = messageInputRef.current;
+
+    if (!input) {
+      return;
+    }
+
+    input.style.height = "auto";
+    input.style.height = `${Math.min(
+      input.scrollHeight,
+      132
+    )}px`;
+  }, [messageInput]);
 
   function updateConversationFromResponse(
     conversation
@@ -1557,20 +1577,25 @@ function ChatTab() {
           <button
             className="primary-action"
             type="button"
+            aria-label="New conversation"
             onClick={handleCreateConversation}
             disabled={
               isLoadingConversations || isTyping
             }
           >
-            New Conversation
+            <Plus
+              className="conversation-create-icon"
+              size={17}
+            />
+            <span className="conversation-create-label">
+              New Conversation
+            </span>
           </button>
         </div>
 
         <div className="conversation-items">
           {isLoadingConversations ? (
-            <p className="chat-sidebar-state">
-              Loading conversations
-            </p>
+            <ConversationListSkeleton />
           ) : filteredConversations.length > 0 ? (
             filteredConversations.map(
               (conversation) => (
@@ -1698,10 +1723,7 @@ function ChatTab() {
           )}
 
           {isLoadingMessages ? (
-            <div className="chat-empty-state">
-              <Bot size={36} />
-              <h2>Loading messages</h2>
-            </div>
+            <ChatMessagesSkeleton />
           ) : activeMessages.length ? (
             activeMessages.map((message) => (
               <article
@@ -1880,12 +1902,22 @@ function ChatTab() {
                 )}
               </div>
             )}
-            <input
+            <textarea
               ref={messageInputRef}
+              rows={1}
               value={messageInput}
               onChange={(event) =>
                 setMessageInput(event.target.value)
               }
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter" &&
+                  !event.shiftKey
+                ) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }}
               disabled={isTyping}
               placeholder={
                 isTyping

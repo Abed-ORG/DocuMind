@@ -7,8 +7,6 @@ import {
 import {
   AlertCircle,
   Eye,
-  GitCompareArrows,
-  Loader2,
   Menu,
   RotateCcw,
   Search,
@@ -17,6 +15,7 @@ import {
 } from "lucide-react";
 
 import documindHero from "../../../../assets/documind-hero.png";
+import { DocumentTableSkeleton } from "../../../../components/Skeleton";
 import { statusLabels } from "../../data/workspaceData";
 import { getFormatIcon } from "../../utils/workspaceUtils";
 
@@ -295,22 +294,11 @@ function DocumentTable({
             <UploadCloud size={17} />
             Add documents
           </button>
-
-          <button className="secondary-action" type="button">
-            <GitCompareArrows size={17} />
-            Compare
-          </button>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="empty-state compact document-table-state">
-          <Loader2 className="spinner" size={34} />
-          <h2>Loading documents</h2>
-          <p>
-            Fetching the latest files stored in this workspace.
-          </p>
-        </div>
+        <DocumentTableSkeleton />
       ) : error ? (
         <div className="empty-state compact document-table-state">
           <AlertCircle size={34} />
@@ -332,6 +320,24 @@ function DocumentTable({
               ? "No documents match your search."
               : "No documents yet. Upload your first file to get started."}
           </h2>
+          {hasDocuments ? (
+            <button
+              className="secondary-action"
+              type="button"
+              onClick={() => onSearchTermChange("")}
+            >
+              Clear search
+            </button>
+          ) : (
+            <button
+              className="primary-action"
+              type="button"
+              onClick={onOpenUploadDialog}
+            >
+              <UploadCloud size={17} />
+              Upload document
+            </button>
+          )}
         </div>
       ) : (
         <div className="document-table-wrap">
