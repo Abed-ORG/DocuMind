@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { pipeline } from "node:stream/promises";
 
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
@@ -18,6 +19,17 @@ import {
   listDocumentSummaries,
   summarizeDocument as summarizeDocumentWithCache,
 } from "../services/summaryService.js";
+import {
+  createDocumentStorageKey,
+  createTempDocumentPath,
+  deleteDocumentFromR2,
+  downloadDocumentFromR2,
+  getDocumentStorageProvider,
+  getR2BucketName,
+  getR2DocumentStream,
+  isR2StorageEnabled,
+  uploadDocumentToR2,
+} from "../services/documentStorageService.js";
 import { cascadeDeleteDocumentData } from "../services/workspaceCascadeService.js";
 
 const currentDirectory = path.dirname(
@@ -62,6 +74,10 @@ function formatDocument(document) {
     processingProgress: document.processingProgress,
     processingError: document.processingError,
     filePath: document.filePath,
+    storageProvider:
+      document.storageProvider ?? "local",
+    storageKey: document.storageKey,
+    storageBucket: document.storageBucket,
     createdAt: document.createdAt,
     updatedAt: document.updatedAt,
   };
@@ -183,12 +199,36 @@ async function removeUploadedFile(filePath) {
 }
 
 async function removeStoredDocumentFile(document) {
+  if (getDocumentStorageProvider(document) === "r2") {
+    await deleteDocumentFromR2(
+      document.storageKey || document.filePath
+    );
+    return;
+  }
+
   await removeUploadedFile(
     path.resolve(
       backendRootDirectory,
       document.filePath
     )
   );
+}
+
+async function moveUploadedFileToLocalStorage(file) {
+  const storedFilePath = getStoredFilePath(
+    file.filename
+  );
+  const destinationPath = path.resolve(
+    backendRootDirectory,
+    storedFilePath
+  );
+
+  await fs.mkdir(path.dirname(destinationPath), {
+    recursive: true,
+  });
+  await fs.rename(file.path, destinationPath);
+
+  return storedFilePath;
 }
 
 async function calculateFileHash(filePath) {
@@ -227,8 +267,9 @@ async function backfillMissingHashesForName({
   await Promise.all(
     documents.map(async (document) => {
       try {
-        const contentHash = await calculateFileHash(
-          getAbsoluteDocumentPath(document)
+        const contentHash = await withLocalDocumentFile(
+          document,
+          calculateFileHash
         );
 
         await Document.updateOne(
@@ -297,6 +338,34 @@ function getAbsoluteDocumentPath(document) {
     backendRootDirectory,
     document.filePath
   );
+}
+
+function getDocumentStorageKey(document) {
+  return document.storageKey || document.filePath;
+}
+
+async function withLocalDocumentFile(
+  document,
+  operation
+) {
+  if (getDocumentStorageProvider(document) !== "r2") {
+    return operation(getAbsoluteDocumentPath(document));
+  }
+
+  const tempPath = createTempDocumentPath(
+    document.filename
+  );
+
+  try {
+    await downloadDocumentFromR2({
+      storageKey: getDocumentStorageKey(document),
+      destinationPath: tempPath,
+    });
+
+    return await operation(tempPath);
+  } finally {
+    await removeUploadedFile(tempPath);
+  }
 }
 
 function normalizePreviewText(value) {
@@ -971,8 +1040,6 @@ async function extractCsvTextPages(filePath) {
 }
 
 async function extractDocumentPreview(document) {
-  const filePath = getAbsoluteDocumentPath(document);
-
   if (document.format === "PDF") {
     return {
       type: "file",
@@ -980,44 +1047,52 @@ async function extractDocumentPreview(document) {
     };
   }
 
-  if (document.format === "DOCX") {
-    return {
-      type: "html",
-      html: await extractDocxHtmlPreview(filePath),
-      pages: await extractDocxPreview(filePath),
-    };
-  }
+  return withLocalDocumentFile(
+    document,
+    async (filePath) => {
+      if (document.format === "DOCX") {
+        return {
+          type: "html",
+          html: await extractDocxHtmlPreview(filePath),
+          pages: await extractDocxPreview(filePath),
+        };
+      }
 
-  if (document.format === "CSV") {
-    return {
-      type: "table",
-      table: await extractCsvPreview(filePath),
-      pages: [],
-    };
-  }
+      if (document.format === "CSV") {
+        return {
+          type: "table",
+          table: await extractCsvPreview(filePath),
+          pages: [],
+        };
+      }
 
-  return {
-    type: "text",
-    pages: await extractPlainTextPreview(filePath),
-  };
+      return {
+        type: "text",
+        pages: await extractPlainTextPreview(filePath),
+      };
+    }
+  );
 }
 
 async function extractDocumentTextPages(document) {
-  const filePath = getAbsoluteDocumentPath(document);
+  return withLocalDocumentFile(
+    document,
+    async (filePath) => {
+      if (document.format === "PDF") {
+        return extractPdfTextPages(filePath);
+      }
 
-  if (document.format === "PDF") {
-    return extractPdfTextPages(filePath);
-  }
+      if (document.format === "DOCX") {
+        return extractDocxTextPages(filePath);
+      }
 
-  if (document.format === "DOCX") {
-    return extractDocxTextPages(filePath);
-  }
+      if (document.format === "CSV") {
+        return extractCsvTextPages(filePath);
+      }
 
-  if (document.format === "CSV") {
-    return extractCsvTextPages(filePath);
-  }
-
-  return extractPlainTextPages(filePath);
+      return extractPlainTextPages(filePath);
+    }
+  );
 }
 
 async function updateDocumentProcessing({
@@ -1406,10 +1481,6 @@ export async function getDocumentFile(req, res, next) {
       });
     }
 
-    const filePath = getAbsoluteDocumentPath(document);
-
-    await fs.access(filePath);
-
     res.setHeader(
       "Content-Type",
       getDocumentMimeType(document)
@@ -1420,6 +1491,19 @@ export async function getDocumentFile(req, res, next) {
         document.originalName
       )}"`
     );
+
+    if (getDocumentStorageProvider(document) === "r2") {
+      const fileStream = await getR2DocumentStream(
+        getDocumentStorageKey(document)
+      );
+
+      await pipeline(fileStream, res);
+      return;
+    }
+
+    const filePath = getAbsoluteDocumentPath(document);
+
+    await fs.access(filePath);
 
     return res.sendFile(filePath);
   } catch (error) {
@@ -1512,6 +1596,9 @@ export async function summarizeDocument(
 }
 
 export async function createDocument(req, res, next) {
+  let uploadedR2StorageKey = "";
+  let localStoredFilePath = "";
+
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -1583,6 +1670,36 @@ export async function createDocument(req, res, next) {
       return sendDuplicateDocumentContentResponse(res);
     }
 
+    let filePath = "";
+    let storageProvider = "local";
+    let storageKey = "";
+    let storageBucket = "";
+
+    if (isR2StorageEnabled()) {
+      storageKey = createDocumentStorageKey({
+        workspaceId: workspace._id,
+        filename: req.file.filename,
+      });
+
+      await uploadDocumentToR2({
+        filePath: req.file.path,
+        storageKey,
+        contentType: req.file.mimetype,
+      });
+
+      uploadedR2StorageKey = storageKey;
+      storageProvider = "r2";
+      storageBucket = getR2BucketName();
+      filePath = `r2://${storageBucket}/${storageKey}`;
+
+      await removeUploadedFile(req.file.path);
+    } else {
+      filePath = await moveUploadedFileToLocalStorage(
+        req.file
+      );
+      localStoredFilePath = filePath;
+    }
+
     const document = await Document.create({
       workspaceId: workspace._id,
       filename: req.file.filename,
@@ -1595,10 +1712,14 @@ export async function createDocument(req, res, next) {
       processingStage: "queued",
       processingProgress: 5,
       processingError: "",
-      filePath: getStoredFilePath(
-        req.file.filename
-      ),
+      filePath,
+      storageProvider,
+      storageKey,
+      storageBucket,
     });
+
+    uploadedR2StorageKey = "";
+    localStoredFilePath = "";
 
     try {
       await incrementUserStorage({
@@ -1625,6 +1746,29 @@ export async function createDocument(req, res, next) {
       },
     });
   } catch (error) {
+    if (uploadedR2StorageKey) {
+      try {
+        await deleteDocumentFromR2(
+          uploadedR2StorageKey
+        );
+      } catch {
+        // Keep the original error as the API failure.
+      }
+    }
+
+    if (localStoredFilePath) {
+      try {
+        await removeUploadedFile(
+          path.resolve(
+            backendRootDirectory,
+            localStoredFilePath
+          )
+        );
+      } catch {
+        // Keep the original error as the API failure.
+      }
+    }
+
     if (req.file?.path) {
       try {
         await removeUploadedFile(req.file.path);
