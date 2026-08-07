@@ -292,6 +292,19 @@ async function decrementUserStorage({
   );
 }
 
+async function touchWorkspaceActivity(workspaceId) {
+  await Workspace.updateOne(
+    {
+      _id: workspaceId,
+    },
+    {
+      $currentDate: {
+        updatedAt: true,
+      },
+    }
+  );
+}
+
 function getAbsoluteDocumentPath(document) {
   return path.resolve(
     backendRootDirectory,
@@ -1599,6 +1612,7 @@ export async function createDocument(req, res, next) {
         req.file.filename
       ),
     });
+    await touchWorkspaceActivity(workspace._id);
 
     try {
       await incrementUserStorage({
@@ -1684,6 +1698,7 @@ export async function updateDocument(req, res, next) {
         message: "Document not found.",
       });
     }
+    await touchWorkspaceActivity(workspace._id);
 
     return res.status(200).json({
       success: true,
@@ -1739,6 +1754,7 @@ export async function reprocessDocument(req, res, next) {
     }
 
     await resetDocumentForReprocessing(document);
+    await touchWorkspaceActivity(workspace._id);
     enqueueDocumentProcessing(document._id);
 
     return res.status(202).json({
@@ -1794,6 +1810,7 @@ export async function deleteDocument(req, res, next) {
       _id: document._id,
       workspaceId: workspace._id,
     });
+    await touchWorkspaceActivity(workspace._id);
 
     try {
       await decrementUserStorage({

@@ -1,8 +1,6 @@
-import {
-  Loader2,
-  RefreshCw,
-} from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
+import { SummarySkeleton } from "../../../../components/Skeleton";
 import { summaryLevels } from "../../data/workspaceData";
 
 const knownSummaryHeadings = [
@@ -180,10 +178,7 @@ function SummaryPanel({
 
       <div className="summary-result">
         {summaryState.isLoading ? (
-          <div className="loading-row">
-            <Loader2 className="spinner" size={18} />
-            Generating summary
-          </div>
+          <SummarySkeleton />
         ) : summaryState.error ? (
           <p className="summary-error">
             {summaryState.error}

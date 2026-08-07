@@ -1,10 +1,10 @@
 import {
   AlertCircle,
-  Loader2,
   Plus,
   RefreshCw,
 } from "lucide-react";
 
+import { DashboardSkeleton } from "../../../../components/Skeleton";
 import documindHero from "../../../../assets/documind-hero.png";
 
 function DashboardState({
@@ -14,15 +14,7 @@ function DashboardState({
   onCreateWorkspace,
 }) {
   if (type === "loading") {
-    return (
-      <div className="empty-state dashboard-state">
-        <Loader2 className="spinner" size={34} />
-        <h2>Loading workspaces</h2>
-        <p>
-          Fetching your workspace list from the API.
-        </p>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (type === "error") {

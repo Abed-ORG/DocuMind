@@ -67,6 +67,19 @@ function formatMessage(message) {
   };
 }
 
+async function touchWorkspaceActivity(workspaceId) {
+  await Workspace.updateOne(
+    {
+      _id: workspaceId,
+    },
+    {
+      $currentDate: {
+        updatedAt: true,
+      },
+    }
+  );
+}
+
 async function findUserWorkspace(req) {
   return Workspace.findOne({
     _id: req.params.id,
@@ -224,6 +237,7 @@ export async function createConversation(
           title: req.body.title,
         }),
       });
+    await touchWorkspaceActivity(workspace._id);
 
     return res.status(201).json({
       success: true,
@@ -306,6 +320,7 @@ export async function deleteConversation(
     await Conversation.deleteOne({
       _id: conversation._id,
     });
+    await touchWorkspaceActivity(workspace._id);
 
     return res.status(200).json({
       success: true,
@@ -343,6 +358,7 @@ export async function updateConversation(
 
     conversation.title = req.body.title;
     await conversation.save();
+    await touchWorkspaceActivity(workspace._id);
 
     const messageCount =
       await Message.countDocuments({
@@ -445,6 +461,7 @@ export async function createConversationMessage(
       },
       updates
     );
+    await touchWorkspaceActivity(workspace._id);
 
     const updatedConversation =
       await Conversation.findById(

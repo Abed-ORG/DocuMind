@@ -5,6 +5,7 @@ import {
 } from "react-router";
 
 import MainLayout from "./layouts/MainLayout";
+import RouteErrorBoundary from "./components/ErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import HomePage from "./pages/home";
@@ -22,73 +23,75 @@ import NotFoundPage from "./pages/NotFoundPage";
 
 function App() {
   return (
-    <Routes>
-      <Route element={<MainLayout />}>
-        <Route
-          path="/"
-          element={<HomePage />}
-        />
-
-        <Route
-          path="/login"
-          element={<LoginPage />}
-        />
-
-        <Route
-          path="/register"
-          element={<RegisterPage />}
-        />
-
-        <Route
-          element={<ProtectedRoute />}
-        >
+    <RouteErrorBoundary>
+      <Routes>
+        <Route element={<MainLayout />}>
           <Route
-            path="/dashboard"
-            element={<WorkspacesPage />}
+            path="/"
+            element={<HomePage />}
           />
 
           <Route
-            path="/workspaces"
-            element={<Navigate to="/dashboard" replace />}
+            path="/login"
+            element={<LoginPage />}
           />
 
           <Route
-            path="/workspace/:workspaceId"
-            element={<WorkspacePage />}
+            path="/register"
+            element={<RegisterPage />}
+          />
+
+          <Route
+            element={<ProtectedRoute />}
           >
             <Route
-              index
-              element={<Navigate to="documents" replace />}
+              path="/dashboard"
+              element={<WorkspacesPage />}
             />
 
             <Route
-              path="documents"
-              element={<DocumentsTab />}
+              path="/workspaces"
+              element={<Navigate to="/dashboard" replace />}
             />
 
             <Route
-              path="chat"
-              element={<ChatTab />}
-            />
+              path="/workspace/:workspaceId"
+              element={<WorkspacePage />}
+            >
+              <Route
+                index
+                element={<Navigate to="documents" replace />}
+              />
 
-            <Route
-              path="analytics"
-              element={<AnalyticsTab />}
-            />
+              <Route
+                path="documents"
+                element={<DocumentsTab />}
+              />
 
-            <Route
-              path="*"
-              element={<Navigate to="documents" replace />}
-            />
+              <Route
+                path="chat"
+                element={<ChatTab />}
+              />
+
+              <Route
+                path="analytics"
+                element={<AnalyticsTab />}
+              />
+
+              <Route
+                path="*"
+                element={<Navigate to="documents" replace />}
+              />
+            </Route>
           </Route>
-        </Route>
 
-        <Route
-          path="*"
-          element={<NotFoundPage />}
-        />
-      </Route>
-    </Routes>
+          <Route
+            path="*"
+            element={<NotFoundPage />}
+          />
+        </Route>
+      </Routes>
+    </RouteErrorBoundary>
   );
 }
 

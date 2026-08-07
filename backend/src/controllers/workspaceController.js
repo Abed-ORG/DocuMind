@@ -1,12 +1,43 @@
 import Document from "../models/Document.js";
+import Conversation from "../models/Conversation.js";
 import User from "../models/User.js";
 import Workspace from "../models/Workspace.js";
 import { cascadeDeleteWorkspaceData } from "../services/workspaceCascadeService.js";
+
+function getLatestDate(values) {
+  return values.reduce((latestDate, value) => {
+    if (!value) {
+      return latestDate;
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return latestDate;
+    }
+
+    if (
+      !latestDate ||
+      date.getTime() > latestDate.getTime()
+    ) {
+      return date;
+    }
+
+    return latestDate;
+  }, null);
+}
 
 function formatWorkspace(
   workspace,
   stats = {}
 ) {
+  const lastActivity = getLatestDate([
+    workspace.updatedAt,
+    workspace.createdAt,
+    stats.documentLastActivity,
+    stats.conversationLastActivity,
+  ]);
+
   return {
     id: workspace._id,
     userId: workspace.userId,
@@ -15,6 +46,7 @@ function formatWorkspace(
     color: workspace.color,
     documentCount: stats.documentCount ?? 0,
     pageCount: stats.pageCount ?? 0,
+    lastActivity,
     createdAt: workspace.createdAt,
     updatedAt: workspace.updatedAt,
   };
@@ -44,6 +76,9 @@ async function getDocumentStatsByWorkspace(
         pageCount: {
           $sum: "$pageCount",
         },
+        documentLastActivity: {
+          $max: "$updatedAt",
+        },
       },
     },
   ]);
@@ -54,6 +89,44 @@ async function getDocumentStatsByWorkspace(
       {
         documentCount: item.documentCount,
         pageCount: item.pageCount ?? 0,
+        documentLastActivity:
+          item.documentLastActivity,
+      },
+    ])
+  );
+}
+
+async function getConversationStatsByWorkspace(
+  workspaceIds
+) {
+  if (workspaceIds.length === 0) {
+    return new Map();
+  }
+
+  const stats = await Conversation.aggregate([
+    {
+      $match: {
+        workspaceId: {
+          $in: workspaceIds,
+        },
+      },
+    },
+    {
+      $group: {
+        _id: "$workspaceId",
+        conversationLastActivity: {
+          $max: "$lastMessageAt",
+        },
+      },
+    },
+  ]);
+
+  return new Map(
+    stats.map((item) => [
+      item._id.toString(),
+      {
+        conversationLastActivity:
+          item.conversationLastActivity,
       },
     ])
   );
@@ -111,13 +184,16 @@ async function decrementUserStorage({
 
 function getWorkspaceStats(
   statsByWorkspaceId,
+  conversationStatsByWorkspaceId,
   workspaceId
 ) {
-  return (
-    statsByWorkspaceId.get(
-      workspaceId.toString()
-    ) ?? {}
-  );
+  const key = workspaceId.toString();
+
+  return {
+    ...(statsByWorkspaceId.get(key) ?? {}),
+    ...(conversationStatsByWorkspaceId.get(key) ??
+      {}),
+  };
 }
 
 function buildWorkspaceUpdates(body) {
@@ -222,18 +298,39 @@ export async function getWorkspaces(req, res, next) {
       await getDocumentStatsByWorkspace(
         workspaces.map((workspace) => workspace._id)
       );
+    const conversationStatsByWorkspaceId =
+      await getConversationStatsByWorkspace(
+        workspaces.map((workspace) => workspace._id)
+      );
 
-    return res.status(200).json({
-      success: true,
-      workspaces: workspaces.map((workspace) =>
+    const formattedWorkspaces = workspaces
+      .map((workspace) =>
         formatWorkspace(
           workspace,
           getWorkspaceStats(
             statsByWorkspaceId,
+            conversationStatsByWorkspaceId,
             workspace._id
           )
         )
-      ),
+      )
+      .sort(
+        (firstWorkspace, secondWorkspace) =>
+          new Date(
+            secondWorkspace.lastActivity ??
+              secondWorkspace.updatedAt ??
+              0
+          ).getTime() -
+          new Date(
+            firstWorkspace.lastActivity ??
+              firstWorkspace.updatedAt ??
+              0
+          ).getTime()
+      );
+
+    return res.status(200).json({
+      success: true,
+      workspaces: formattedWorkspaces,
     });
   } catch (error) {
     next(error);
@@ -258,6 +355,10 @@ export async function getWorkspace(req, res, next) {
       await getDocumentStatsByWorkspace([
         workspace._id,
       ]);
+    const conversationStatsByWorkspaceId =
+      await getConversationStatsByWorkspace([
+        workspace._id,
+      ]);
 
     return res.status(200).json({
       success: true,
@@ -265,6 +366,7 @@ export async function getWorkspace(req, res, next) {
         workspace,
         getWorkspaceStats(
           statsByWorkspaceId,
+          conversationStatsByWorkspaceId,
           workspace._id
         )
       ),
@@ -316,6 +418,10 @@ export async function updateWorkspace(req, res, next) {
       await getDocumentStatsByWorkspace([
         workspace._id,
       ]);
+    const conversationStatsByWorkspaceId =
+      await getConversationStatsByWorkspace([
+        workspace._id,
+      ]);
 
     return res.status(200).json({
       success: true,
@@ -324,6 +430,7 @@ export async function updateWorkspace(req, res, next) {
         workspace,
         getWorkspaceStats(
           statsByWorkspaceId,
+          conversationStatsByWorkspaceId,
           workspace._id
         )
       ),

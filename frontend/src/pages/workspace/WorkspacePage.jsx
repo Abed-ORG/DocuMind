@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "../../context/AuthContext";
+import { WorkspaceContentSkeleton } from "../../components/Skeleton";
 import { getWorkspace as getWorkspaceRequest } from "../../services/api";
 import { WorkspaceStatusPanel } from "./components/feedback";
 import { WorkspaceSidebarProfile } from "./components/layout";
@@ -217,11 +218,7 @@ function WorkspacePage() {
           </p>
 
           {isLoadingWorkspace ? (
-            <WorkspaceStatusPanel
-              type="loading"
-              title="Loading workspace"
-              message="Fetching the workspace details from the API."
-            />
+            <WorkspaceContentSkeleton />
           ) : workspaceError ? (
             <WorkspaceStatusPanel
               type="error"
