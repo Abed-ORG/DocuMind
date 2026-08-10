@@ -219,6 +219,7 @@ const comparisonSystemInstruction = [
   "Identify meaningful similarities, differences, and evidence gaps.",
   "If one or both source sets do not contain enough information, say exactly which document lacks enough evidence.",
   "Do not invent document names, page numbers, citations, quotes, or facts.",
+  "Keep the comparison concise: use short paragraphs or bullets, avoid long quotations, and stay under 700 words.",
   "Write clean plain text with concise section headings. Do not use markdown emphasis markers such as **bold** or *italic*.",
 ].join("\n");
 
@@ -278,6 +279,8 @@ export function buildComparisonPrompt({
     "Similarities",
     "Differences",
     "Evidence gaps",
+    "",
+    "Use at most 3 concise bullets or sentences per section.",
   ].join("\n");
 
   return {

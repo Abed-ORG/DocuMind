@@ -11,6 +11,7 @@ const followUpPattern =
   /\b(it|that|this|they|them|those|same|above|previous|earlier|paragraph|rewrite|reformat|summarize|summary)\b/i;
 const explicitFilePattern =
   /\b[\w .()[\]-]+\.(pdf|docx|txt|csv)\b/i;
+const comparisonMaxChunkCharacters = 2200;
 
 const defaultRetryOptions = {
   maxRetries: 2,
@@ -433,7 +434,7 @@ export async function generateComparisonAnswer({
   timeoutMs,
   retry,
   temperature = 0.2,
-  maxOutputTokens = 1600,
+  maxOutputTokens = 3000,
 } = {}) {
   const prompt = buildComparisonPrompt({
     topic,
@@ -441,6 +442,7 @@ export async function generateComparisonAnswer({
     secondDocumentName,
     firstSourceChunks,
     secondSourceChunks,
+    maxChunkCharacters: comparisonMaxChunkCharacters,
   });
   const client = getGeminiClient();
   const selectedModel =
@@ -511,7 +513,7 @@ export async function compareWorkspaceDocuments({
   firstDocumentName,
   secondDocumentId,
   secondDocumentName,
-  limit = 6,
+  limit = 4,
 } = {}) {
   const [
     firstSourceChunks,
