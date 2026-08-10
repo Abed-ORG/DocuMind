@@ -144,6 +144,7 @@ function DocumentsTab() {
       rows: [],
       documentIds: [],
       documentName: "",
+      documentNames: [],
       hasRun: false,
       isLoading: false,
       requestKey: 0,
@@ -1145,6 +1146,7 @@ function DocumentsTab() {
       ...current,
       documentIds: [document.id],
       documentName: document.name,
+      documentNames: [document.name],
       hasRun: false,
       isLoading: false,
       error: "",
@@ -1161,6 +1163,33 @@ function DocumentsTab() {
       ...current,
       documentIds: [],
       documentName: "",
+      documentNames: [],
+      hasRun: false,
+      error: "",
+      rows: [],
+    }));
+  }
+
+  function handleExtractionDocumentSelection(
+    documentIds
+  ) {
+    const selectedIds = Array.isArray(documentIds)
+      ? documentIds
+      : [];
+    const selectedDocuments = documents.filter((document) =>
+      selectedIds.includes(document.id)
+    );
+
+    setExtractionState((current) => ({
+      ...current,
+      documentIds: selectedIds,
+      documentName:
+        selectedDocuments.length === 1
+          ? selectedDocuments[0].name
+          : "",
+      documentNames: selectedDocuments.map(
+        (document) => document.name
+      ),
       hasRun: false,
       error: "",
       rows: [],
@@ -1374,11 +1403,15 @@ function DocumentsTab() {
 
       <StructuredExtraction
         panelRef={extractionRef}
+        documents={documents}
         extractionPrompt={extractionPrompt}
         extractionState={extractionState}
         rows={sortedExtractionRows}
         onExtractionPromptChange={setExtractionPrompt}
         onClearDocumentFocus={clearExtractionFocus}
+        onDocumentSelectionChange={
+          handleExtractionDocumentSelection
+        }
         onExtract={runExtraction}
         onSort={handleSort}
         onExportCsv={exportCsv}

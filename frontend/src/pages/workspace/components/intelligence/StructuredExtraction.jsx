@@ -1,22 +1,35 @@
 import {
   AlertCircle,
+  Check,
+  ChevronDown,
   Download,
+  FileText,
   Loader2,
   Table2,
   X,
 } from "lucide-react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 function StructuredExtraction({
   panelRef,
+  documents,
   extractionPrompt,
   extractionState,
   rows,
   onExtractionPromptChange,
   onClearDocumentFocus,
+  onDocumentSelectionChange,
   onExtract,
   onSort,
   onExportCsv,
 }) {
+  const [isReferenceMenuOpen, setIsReferenceMenuOpen] =
+    useState(false);
+  const referenceMenuRef = useRef(null);
   const columns =
     extractionState?.columns?.length > 0
       ? extractionState.columns
@@ -26,12 +39,67 @@ function StructuredExtraction({
           "type",
           "source",
         ];
+  const readyDocuments = documents.filter(
+    (document) => document.status === "ready"
+  );
+  const selectedDocumentIds =
+    extractionState?.documentIds ?? [];
+  const selectedDocumentIdSet = new Set(
+    selectedDocumentIds
+  );
+  const selectedDocumentNames = readyDocuments
+    .filter((document) =>
+      selectedDocumentIdSet.has(document.id)
+    )
+    .map((document) => document.name);
+  const referenceNames =
+    selectedDocumentNames.length > 0
+      ? selectedDocumentNames
+      : extractionState?.documentNames ?? [];
   const hasRows = rows.length > 0;
-  const isFocused =
-    Boolean(extractionState?.documentName);
+  const isFocused = referenceNames.length > 0;
+  const referenceLabel =
+    referenceNames.length > 0
+      ? `${referenceNames.length} file${
+          referenceNames.length === 1 ? "" : "s"
+        }`
+      : "All ready files";
   const canExtract =
     Boolean(extractionPrompt.trim()) &&
     !extractionState?.isLoading;
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (
+        referenceMenuRef.current &&
+        !referenceMenuRef.current.contains(event.target)
+      ) {
+        setIsReferenceMenuOpen(false);
+      }
+    }
+
+    document.addEventListener(
+      "mousedown",
+      handleClickOutside
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside
+      );
+    };
+  }, []);
+
+  function toggleDocument(documentId) {
+    const nextDocumentIds = selectedDocumentIdSet.has(
+      documentId
+    )
+      ? selectedDocumentIds.filter((id) => id !== documentId)
+      : [...selectedDocumentIds, documentId];
+
+    onDocumentSelectionChange(nextDocumentIds);
+  }
 
   return (
     <section className="extraction-panel" ref={panelRef}>
@@ -51,6 +119,67 @@ function StructuredExtraction({
         </button>
       </header>
 
+      <div
+        className="extraction-reference"
+        ref={referenceMenuRef}
+      >
+        <button
+          className="secondary-action"
+          type="button"
+          onClick={() =>
+            setIsReferenceMenuOpen((current) => !current)
+          }
+          aria-expanded={isReferenceMenuOpen}
+          aria-haspopup="menu"
+        >
+          <FileText size={17} />
+          {referenceLabel}
+          <ChevronDown size={16} />
+        </button>
+
+        {isReferenceMenuOpen && (
+          <div
+            className="extraction-reference-menu"
+            role="menu"
+          >
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={selectedDocumentIds.length === 0}
+              onClick={() => onDocumentSelectionChange([])}
+            >
+              <span>
+                {selectedDocumentIds.length === 0 && (
+                  <Check size={15} />
+                )}
+              </span>
+              All ready files
+            </button>
+
+            {readyDocuments.map((document) => {
+              const isSelected = selectedDocumentIdSet.has(
+                document.id
+              );
+
+              return (
+                <button
+                  key={document.id}
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={isSelected}
+                  onClick={() => toggleDocument(document.id)}
+                >
+                  <span>
+                    {isSelected && <Check size={15} />}
+                  </span>
+                  {document.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div className="extract-control">
         <label htmlFor="extract-prompt">
           What do you want to extract?
@@ -58,7 +187,7 @@ function StructuredExtraction({
         {isFocused && (
           <div className="extraction-focus">
             <span>
-              Focused on {extractionState.documentName}
+              Referencing {referenceNames.join(", ")}
             </span>
             <button
               type="button"

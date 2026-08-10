@@ -11,6 +11,7 @@ const followUpPattern =
   /\b(it|that|this|they|them|those|same|above|previous|earlier|paragraph|rewrite|reformat|summarize|summary)\b/i;
 const explicitFilePattern =
   /\b[\w .()[\]-]+\.(pdf|docx|txt|csv)\b/i;
+const structuredExtractionMaxChunkCharacters = 1200;
 
 const defaultRetryOptions = {
   maxRetries: 2,
@@ -169,30 +170,56 @@ function normalizeExtractionRows(rows) {
   }
 
   return rows
-    .map((row) => ({
-      field: normalizeExtractionValue(row?.field, 180),
-      value: normalizeExtractionValue(row?.value),
-      type: normalizeExtractionValue(row?.type, 120),
-      source: normalizeExtractionValue(row?.source, 260),
-      documentName: normalizeExtractionValue(
-        row?.documentName,
-        255
-      ),
-      pageNumber:
-        Number.isInteger(Number(row?.pageNumber)) &&
-        Number(row.pageNumber) > 0
-          ? Number(row.pageNumber)
-          : null,
-      chunkIndex:
-        Number.isInteger(Number(row?.chunkIndex)) &&
-        Number(row.chunkIndex) >= 0
-          ? Number(row.chunkIndex)
-          : null,
-      evidence: normalizeExtractionValue(
-        row?.evidence,
-        1200
-      ),
-    }))
+    .map((row) => {
+      if (Array.isArray(row)) {
+        return {
+          field: normalizeExtractionValue(row[0], 180),
+          value: normalizeExtractionValue(row[1]),
+          type: normalizeExtractionValue(row[2], 120),
+          source: normalizeExtractionValue(row[3], 260),
+          documentName: "",
+          pageNumber: null,
+          chunkIndex: null,
+          evidence: "",
+        };
+      }
+
+      return {
+        field: normalizeExtractionValue(
+          row?.field ?? row?.f,
+          180
+        ),
+        value: normalizeExtractionValue(
+          row?.value ?? row?.v
+        ),
+        type: normalizeExtractionValue(
+          row?.type ?? row?.t,
+          120
+        ),
+        source: normalizeExtractionValue(
+          row?.source ?? row?.s,
+          260
+        ),
+        documentName: normalizeExtractionValue(
+          row?.documentName,
+          255
+        ),
+        pageNumber:
+          Number.isInteger(Number(row?.pageNumber)) &&
+          Number(row.pageNumber) > 0
+            ? Number(row.pageNumber)
+            : null,
+        chunkIndex:
+          Number.isInteger(Number(row?.chunkIndex)) &&
+          Number(row.chunkIndex) >= 0
+            ? Number(row.chunkIndex)
+            : null,
+        evidence: normalizeExtractionValue(
+          row?.evidence,
+          1200
+        ),
+      };
+    })
     .filter(
       (row) =>
         row.field ||
@@ -203,6 +230,10 @@ function normalizeExtractionRows(rows) {
 }
 
 function normalizeExtractionTable(parsedJson) {
+  const rows = Array.isArray(parsedJson)
+    ? parsedJson
+    : parsedJson?.rows;
+
   return {
     columns: [
       "field",
@@ -210,7 +241,7 @@ function normalizeExtractionTable(parsedJson) {
       "type",
       "source",
     ],
-    rows: normalizeExtractionRows(parsedJson?.rows),
+    rows: normalizeExtractionRows(rows),
   };
 }
 
@@ -518,12 +549,14 @@ export async function generateStructuredExtraction({
   timeoutMs,
   retry,
   temperature = 0.1,
-  maxOutputTokens = 1800,
+  maxOutputTokens = 6000,
 } = {}) {
   const extractionPrompt =
     buildStructuredExtractionPrompt({
       prompt,
       sourceChunks,
+      maxChunkCharacters:
+        structuredExtractionMaxChunkCharacters,
     });
   const client = getGeminiClient();
   const selectedModel =
@@ -604,7 +637,7 @@ export async function generateStructuredExtraction({
 export async function extractWorkspaceFields({
   workspaceId,
   prompt,
-  limit = 10,
+  limit = 4,
   documentIds,
 } = {}) {
   const sourceChunks = await searchWorkspaceChunks({
