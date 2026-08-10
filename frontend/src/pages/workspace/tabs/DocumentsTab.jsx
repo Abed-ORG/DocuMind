@@ -8,6 +8,7 @@ import { useParams } from "react-router";
 
 import { useAuth } from "../../../context/AuthContext";
 import {
+  compareWorkspaceDocuments as compareWorkspaceDocumentsRequest,
   deleteDocument as deleteDocumentRequest,
   getDocumentFileBlob,
   getDocumentPreview,
@@ -130,6 +131,12 @@ function DocumentsTab() {
     secondDocumentId: "",
     topic: defaultComparisonTopic,
     hasResult: false,
+    isLoading: false,
+    requestKey: 0,
+    error: "",
+    answer: "",
+    citations: [],
+    sources: [],
   });
 
   const [extractionPrompt, setExtractionPrompt] =
@@ -502,6 +509,7 @@ function DocumentsTab() {
   }, [
     summaryState?.documentId,
     summaryState?.level,
+    summaryState?.force,
     summaryState?.isLoading,
     summaryState?.requestKey,
     summaryState?.force,
@@ -1154,19 +1162,80 @@ function DocumentsTab() {
     setIsUploadDialogOpen(false);
   }
 
-  function handleCompare() {
+  async function handleCompare() {
+    if (!workspaceId || !token) {
+      return;
+    }
+
+    const nextRequestKey =
+      comparison.requestKey + 1;
+    const firstDocumentId =
+      comparisonSelection.firstDocumentId;
+    const secondDocumentId =
+      comparisonSelection.secondDocumentId;
+    const topic = comparisonSelection.topic.trim();
+
     setComparison((current) => ({
       ...current,
-      firstDocumentId:
-        comparisonSelection.firstDocumentId,
-      secondDocumentId:
-        comparisonSelection.secondDocumentId,
-      hasResult:
-        documents.length >= 2 &&
-        Boolean(comparisonSelection.topic.trim()) &&
-        comparisonSelection.firstDocumentId !==
-          comparisonSelection.secondDocumentId,
+      firstDocumentId,
+      secondDocumentId,
+      topic,
+      hasResult: false,
+      isLoading: true,
+      requestKey: nextRequestKey,
+      error: "",
+      answer: "",
+      citations: [],
+      sources: [],
     }));
+
+    try {
+      const response =
+        await compareWorkspaceDocumentsRequest(
+          workspaceId,
+          {
+            firstDocumentId,
+            secondDocumentId,
+            topic,
+          },
+          token
+        );
+
+      setComparison((current) => {
+        if (current.requestKey !== nextRequestKey) {
+          return current;
+        }
+
+        return {
+          ...current,
+          hasResult: true,
+          isLoading: false,
+          error: "",
+          answer: response.answer ?? "",
+          citations: response.citations ?? [],
+          sources: response.sources ?? [],
+          model: response.model ?? "",
+        };
+      });
+    } catch (error) {
+      setComparison((current) => {
+        if (current.requestKey !== nextRequestKey) {
+          return current;
+        }
+
+        return {
+          ...current,
+          hasResult: false,
+          isLoading: false,
+          error:
+            error.message ||
+            "Unable to compare these documents.",
+          answer: "",
+          citations: [],
+          sources: [],
+        };
+      });
+    }
   }
 
   function openExtraction(document) {

@@ -1,13 +1,17 @@
 import { GoogleGenAI } from "@google/genai";
 
 import { env } from "../config/env.js";
-import { buildRagPrompt } from "./ragPromptService.js";
+import {
+  buildComparisonPrompt,
+  buildRagPrompt,
+} from "./ragPromptService.js";
 import { searchWorkspaceChunks } from "./vectorSearchService.js";
 
 const followUpPattern =
   /\b(it|that|this|they|them|those|same|above|previous|earlier|paragraph|rewrite|reformat|summarize|summary)\b/i;
 const explicitFilePattern =
   /\b[\w .()[\]-]+\.(pdf|docx|txt|csv)\b/i;
+const comparisonMaxChunkCharacters = 2200;
 
 const defaultRetryOptions = {
   maxRetries: 2,
@@ -417,5 +421,123 @@ export async function answerWorkspaceQuestion({
     question,
     sourceChunks,
     conversationHistory,
+  });
+}
+
+export async function generateComparisonAnswer({
+  topic,
+  firstDocumentName,
+  secondDocumentName,
+  firstSourceChunks = [],
+  secondSourceChunks = [],
+  model,
+  timeoutMs,
+  retry,
+  temperature = 0.2,
+  maxOutputTokens = 3000,
+} = {}) {
+  const prompt = buildComparisonPrompt({
+    topic,
+    firstDocumentName,
+    secondDocumentName,
+    firstSourceChunks,
+    secondSourceChunks,
+    maxChunkCharacters: comparisonMaxChunkCharacters,
+  });
+  const client = getGeminiClient();
+  const selectedModel =
+    model ?? env.geminiGenerativeModel;
+  let response;
+
+  try {
+    response = await withRetry(
+      () =>
+        withTimeout(
+          client.models.generateContent({
+            model: selectedModel,
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text: prompt.userPrompt,
+                  },
+                ],
+              },
+            ],
+            config: {
+              systemInstruction:
+                prompt.systemInstruction,
+              temperature,
+              maxOutputTokens,
+            },
+          }),
+          timeoutMs ?? env.geminiGenerativeTimeoutMs
+        ),
+      retry
+    );
+  } catch (error) {
+    if (isRetryableGeminiError(error)) {
+      throw createIncompleteAnswerError({
+        message:
+          "The AI provider could not complete the comparison. Please retry.",
+        finishReason:
+          error?.status === 429
+            ? "RATE_LIMIT"
+            : error?.code ?? error?.name ?? "REQUEST_FAILED",
+      });
+    }
+
+    throw error;
+  }
+
+  const answer = getResponseText(response);
+
+  assertCompleteAnswer(response, answer);
+
+  return {
+    answer,
+    citations: extractCitationReferences(
+      answer,
+      prompt.sources
+    ),
+    sources: prompt.sources,
+    model: selectedModel,
+  };
+}
+
+export async function compareWorkspaceDocuments({
+  workspaceId,
+  topic,
+  firstDocumentId,
+  firstDocumentName,
+  secondDocumentId,
+  secondDocumentName,
+  limit = 4,
+} = {}) {
+  const [
+    firstSourceChunks,
+    secondSourceChunks,
+  ] = await Promise.all([
+    searchWorkspaceChunks({
+      workspaceId,
+      query: topic,
+      limit,
+      documentIds: [firstDocumentId],
+    }),
+    searchWorkspaceChunks({
+      workspaceId,
+      query: topic,
+      limit,
+      documentIds: [secondDocumentId],
+    }),
+  ]);
+
+  return generateComparisonAnswer({
+    topic,
+    firstDocumentName,
+    secondDocumentName,
+    firstSourceChunks,
+    secondSourceChunks,
   });
 }

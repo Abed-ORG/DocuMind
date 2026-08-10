@@ -334,6 +334,32 @@ export function answerWorkspaceQuestion(
   });
 }
 
+export function compareWorkspaceDocuments(
+  workspaceId,
+  {
+    firstDocumentId,
+    secondDocumentId,
+    topic,
+    limit,
+  },
+  token
+) {
+  return request(`/workspaces/${workspaceId}/compare`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      firstDocumentId,
+      secondDocumentId,
+      topic,
+      ...(limit !== undefined && {
+        limit,
+      }),
+    }),
+  });
+}
+
 export function getConversations(workspaceId, token) {
   return request(
     `/workspaces/${workspaceId}/conversations`,

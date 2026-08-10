@@ -17,6 +17,7 @@ import {
 } from "../controllers/conversationController.js";
 import {
   answerWorkspace,
+  compareWorkspace,
   searchWorkspace,
 } from "../controllers/searchController.js";
 import {
@@ -48,6 +49,7 @@ import {
 } from "../validators/conversationValidators.js";
 import {
   answerWorkspaceQuestionValidators,
+  compareWorkspaceDocumentsValidators,
   createWorkspaceValidators,
   searchWorkspaceValidators,
   updateWorkspaceValidators,
@@ -152,6 +154,14 @@ router.post(
   answerWorkspaceQuestionValidators,
   validateRequest,
   answerWorkspace
+);
+
+router.post(
+  "/:id/compare",
+  workspaceIdValidator,
+  compareWorkspaceDocumentsValidators,
+  validateRequest,
+  compareWorkspace
 );
 
 router

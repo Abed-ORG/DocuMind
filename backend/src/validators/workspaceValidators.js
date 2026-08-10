@@ -144,3 +144,42 @@ export const answerWorkspaceQuestionValidators = [
       "Conversation history citation document id is invalid."
     ),
 ];
+
+export const compareWorkspaceDocumentsValidators = [
+  body("firstDocumentId")
+    .trim()
+    .isMongoId()
+    .withMessage("First document id is invalid."),
+
+  body("secondDocumentId")
+    .trim()
+    .isMongoId()
+    .withMessage("Second document id is invalid.")
+    .custom((secondDocumentId, { req }) => {
+      if (secondDocumentId === req.body.firstDocumentId) {
+        throw new Error(
+          "Choose two different documents to compare."
+        );
+      }
+
+      return true;
+    }),
+
+  body("topic")
+    .trim()
+    .notEmpty()
+    .withMessage("Comparison topic is required.")
+    .isLength({ max: 2000 })
+    .withMessage(
+      "Comparison topic cannot exceed 2000 characters."
+    ),
+
+  body("limit")
+    .optional()
+    .isInt({
+      min: 1,
+      max: 10,
+    })
+    .withMessage("Limit must be between 1 and 10.")
+    .toInt(),
+];
