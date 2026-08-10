@@ -6,12 +6,12 @@ import {
 } from "react-router";
 import {
   ChevronDown,
-  FileSearch,
   Loader2,
   LogOut,
   Settings,
 } from "lucide-react";
 
+import DocuMindLogo from "./DocuMindLogo";
 import { useAuth } from "../context/AuthContext";
 import { getStorageUsage } from "../utils/storageUsage";
 import "./Header.css";
@@ -52,10 +52,7 @@ function Header() {
     <header className="site-header">
       <div className="site-header-container">
         <Link className="site-logo" to="/">
-          <span className="site-logo-mark">
-            <FileSearch size={20} />
-          </span>
-          <span>DocuMind</span>
+          <DocuMindLogo className="site-logo-image" />
         </Link>
 
         <nav

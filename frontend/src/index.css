@@ -467,6 +467,10 @@ main {
   font-weight: 700;
 }
 
+.auth-input-wrap {
+  position: relative;
+}
+
 .form-group input,
 .form-group textarea,
 .form-group select {
@@ -481,6 +485,40 @@ main {
   transition:
     border-color 150ms ease,
     box-shadow 150ms ease;
+}
+
+.auth-input-wrap.has-password-toggle input {
+  padding-right: 46px;
+}
+
+.password-toggle {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-button);
+  color: var(--color-subtle);
+  background: transparent;
+  transform: translateY(-50%);
+  transition:
+    color 150ms ease,
+    background 150ms ease;
+}
+
+.password-toggle:hover {
+  color: var(--color-text);
+  background: var(--color-surface-muted);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid rgba(79, 70, 229, 0.45);
+  outline-offset: 2px;
 }
 
 .form-group textarea {

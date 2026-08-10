@@ -11,10 +11,10 @@ import {
 } from "react-router";
 import {
   ArrowLeft,
-  FileSearch,
   Menu,
 } from "lucide-react";
 
+import DocuMindLogo from "../../components/DocuMindLogo";
 import { useAuth } from "../../context/AuthContext";
 import { WorkspaceContentSkeleton } from "../../components/Skeleton";
 import { getWorkspace as getWorkspaceRequest } from "../../services/api";
@@ -142,10 +142,7 @@ function WorkspacePage() {
         }
       >
         <Link className="workspace-sidebar-brand" to="/">
-          <span className="workspace-sidebar-brand-mark">
-            <FileSearch size={20} />
-          </span>
-          <span>DocuMind</span>
+          <DocuMindLogo className="workspace-sidebar-logo" />
         </Link>
 
         <div className="sidebar-workspace-title">
