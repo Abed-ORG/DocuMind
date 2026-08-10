@@ -1055,6 +1055,57 @@ function DocumentsTab() {
     uploadFiles(selectedFiles);
   }
 
+  function isFileDragEvent(event) {
+    return Array.from(
+      event.dataTransfer?.types ?? []
+    ).includes("Files");
+  }
+
+  function handleUploadButtonDragEnter(event) {
+    if (!isFileDragEvent(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    setIsUploadDialogOpen(true);
+
+    if (!isUploadingDocument) {
+      setIsDraggingDocument(true);
+    }
+  }
+
+  function handleUploadButtonDragOver(event) {
+    if (!isFileDragEvent(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+  }
+
+  function handleUploadButtonDrop(event) {
+    if (!isFileDragEvent(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    setIsUploadDialogOpen(true);
+    setIsDraggingDocument(false);
+
+    if (isUploadingDocument) {
+      return;
+    }
+
+    uploadFiles(
+      Array.from(event.dataTransfer.files ?? [])
+    );
+  }
+
   function handleUploadDragEnter(event) {
     event.preventDefault();
     event.stopPropagation();
@@ -1187,6 +1238,9 @@ function DocumentsTab() {
         onOpenSummary={openSummary}
         onOpenPreview={setPreviewDocument}
         onOpenUploadDialog={() => setIsUploadDialogOpen(true)}
+        onUploadButtonDragEnter={handleUploadButtonDragEnter}
+        onUploadButtonDragOver={handleUploadButtonDragOver}
+        onUploadButtonDrop={handleUploadButtonDrop}
         onRenameDocument={openRenameDialog}
         onOpenExtraction={openExtraction}
         onReprocessDocument={reprocessFailedDocument}

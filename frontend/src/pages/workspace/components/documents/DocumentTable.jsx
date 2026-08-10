@@ -7,9 +7,12 @@ import {
 import {
   AlertCircle,
   Eye,
+  FileText,
   Menu,
+  PencilLine,
   RotateCcw,
   Search,
+  TextSelect,
   Trash2,
   UploadCloud,
 } from "lucide-react";
@@ -203,6 +206,7 @@ function DocumentActionsMenu({
             role="menuitem"
             onClick={() => runAction(onOpenSummary)}
           >
+            <FileText size={15} />
             Summarize
           </button>
           <button
@@ -218,6 +222,7 @@ function DocumentActionsMenu({
             role="menuitem"
             onClick={() => runAction(onRenameDocument)}
           >
+            <PencilLine size={15} />
             Rename
           </button>
           <button
@@ -225,6 +230,7 @@ function DocumentActionsMenu({
             role="menuitem"
             onClick={() => runAction(onOpenExtraction)}
           >
+            <TextSelect size={15} />
             Extract
           </button>
           {document.status === "failed" && (
@@ -265,6 +271,9 @@ function DocumentTable({
   onOpenSummary,
   onOpenPreview,
   onOpenUploadDialog,
+  onUploadButtonDragEnter,
+  onUploadButtonDragOver,
+  onUploadButtonDrop,
   onRenameDocument,
   onOpenExtraction,
   onReprocessDocument,
@@ -290,6 +299,9 @@ function DocumentTable({
             className="primary-action"
             type="button"
             onClick={onOpenUploadDialog}
+            onDragEnter={onUploadButtonDragEnter}
+            onDragOver={onUploadButtonDragOver}
+            onDrop={onUploadButtonDrop}
           >
             <UploadCloud size={17} />
             Add documents
@@ -333,6 +345,9 @@ function DocumentTable({
               className="primary-action"
               type="button"
               onClick={onOpenUploadDialog}
+              onDragEnter={onUploadButtonDragEnter}
+              onDragOver={onUploadButtonDragOver}
+              onDrop={onUploadButtonDrop}
             >
               <UploadCloud size={17} />
               Upload document

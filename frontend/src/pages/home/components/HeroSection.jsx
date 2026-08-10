@@ -24,7 +24,10 @@ function HeroSection({ isAuthenticated }) {
 
       <div className="landing-container hero-grid">
         <div className="hero-content">
-          <h1>DocuMind</h1>
+          <h1>
+            <span>Docu</span>
+            <span className="hero-title-accent">Mind</span>
+          </h1>
 
           <p className="hero-tagline">
             Turn scattered documents into trusted answers.

@@ -790,24 +790,15 @@
   min-height: 48px;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  color: var(--color-text);
-  font-size: 1.2rem;
-  font-weight: 800;
   text-decoration: none;
-  letter-spacing: 0;
 }
 
-.workspace-sidebar-brand-mark {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  border-radius: var(--radius-card);
-  color: #ffffff;
-  background: var(--color-primary);
-  box-shadow: 0 1px 3px rgba(79, 70, 229, 0.28);
+.workspace-sidebar-logo {
+  width: auto;
+  height: 44px;
+  max-width: 170px;
+  display: block;
+  object-fit: contain;
 }
 
 .sidebar-workspace-title {

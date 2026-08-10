@@ -1,12 +1,14 @@
 import { Link } from "react-router";
 
+import DocuMindLogo from "../../../components/DocuMindLogo";
+
 function LandingFooter() {
   return (
     <footer className="landing-footer">
       <div className="landing-container footer-content">
         <div>
           <Link className="footer-brand" to="/">
-            DocuMind
+            <DocuMindLogo className="footer-brand-logo" />
           </Link>
           <p>Built by Hussein Marji - GDC Internship 2026</p>
         </div>
