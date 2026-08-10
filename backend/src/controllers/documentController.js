@@ -28,6 +28,10 @@ const backendRootDirectory = path.resolve(
   currentDirectory,
   "../.."
 );
+const storedDocumentDirectory = path.resolve(
+  backendRootDirectory,
+  "uploads/documents"
+);
 
 const maxPreviewCharacters = 120000;
 const maxCsvPreviewBytes = 512 * 1024;
@@ -183,12 +187,7 @@ async function removeUploadedFile(filePath) {
 }
 
 async function removeStoredDocumentFile(document) {
-  await removeUploadedFile(
-    path.resolve(
-      backendRootDirectory,
-      document.filePath
-    )
-  );
+  await removeUploadedFile(getAbsoluteDocumentPath(document));
 }
 
 async function calculateFileHash(filePath) {
@@ -306,10 +305,34 @@ async function touchWorkspaceActivity(workspaceId) {
 }
 
 function getAbsoluteDocumentPath(document) {
-  return path.resolve(
+  const storedPath =
+    typeof document.filePath === "string"
+      ? document.filePath
+      : "";
+
+  const absolutePath = path.resolve(
     backendRootDirectory,
-    document.filePath
+    storedPath
   );
+
+  const relativePath = path.relative(
+    storedDocumentDirectory,
+    absolutePath
+  );
+
+  if (
+    !relativePath ||
+    relativePath.startsWith("..") ||
+    path.isAbsolute(relativePath)
+  ) {
+    const error = new Error(
+      "Stored document path is invalid."
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return absolutePath;
 }
 
 function normalizePreviewText(value) {
