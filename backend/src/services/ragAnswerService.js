@@ -12,6 +12,7 @@ const followUpPattern =
   /\b(it|that|this|they|them|those|same|above|previous|earlier|paragraph|rewrite|reformat|summarize|summary)\b/i;
 const explicitFilePattern =
   /\b[\w .()[\]-]+\.(pdf|docx|txt|csv)\b/i;
+const ragAnswerMaxChunkCharacters = 1800;
 const comparisonMaxChunkCharacters = 2200;
 const structuredExtractionMaxChunkCharacters = 1200;
 
@@ -432,12 +433,13 @@ export async function generateRagAnswer({
   timeoutMs,
   retry,
   temperature = 0.2,
-  maxOutputTokens = 1200,
+  maxOutputTokens = 3000,
 } = {}) {
   const prompt = buildRagPrompt({
     question,
     sourceChunks,
     conversationHistory,
+    maxChunkCharacters: ragAnswerMaxChunkCharacters,
   });
   const client = getGeminiClient();
   const selectedModel =
@@ -533,7 +535,10 @@ export async function answerWorkspaceQuestion({
       question,
       conversationHistory,
     }),
-    limit,
+    limit:
+      typeof limit === "number"
+        ? Math.min(limit, 4)
+        : 4,
     documentIds: focusedDocumentIds,
   });
 

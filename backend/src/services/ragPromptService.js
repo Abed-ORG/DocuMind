@@ -16,6 +16,8 @@ const systemInstruction = [
   "Use recent conversation history only to understand follow-up references, not as a source of factual truth.",
   "If the user asks to rewrite, reformat, or put the previous answer in a paragraph, preserve the same document focus and answer from the retrieved sources.",
   "Keep the answer concise, clear, and directly focused on the user's question.",
+  "For broad overview questions like what a document is about, answer with one short paragraph or 4 to 6 bullets instead of summarizing every detail.",
+  "Stay under 600 words unless the user explicitly asks for a longer answer.",
   "Do not use markdown emphasis markers such as **bold** or *italic*; write clean plain text except for markdown tables when the user explicitly asks for a table.",
 ].join("\n");
 
