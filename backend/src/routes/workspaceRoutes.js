@@ -19,6 +19,7 @@ import {
 import {
   answerWorkspace,
   compareWorkspace,
+  extractWorkspace,
   searchWorkspace,
 } from "../controllers/searchController.js";
 import {
@@ -52,6 +53,7 @@ import {
   answerWorkspaceQuestionValidators,
   compareWorkspaceDocumentsValidators,
   createWorkspaceValidators,
+  extractWorkspaceFieldsValidators,
   searchWorkspaceValidators,
   updateWorkspaceValidators,
   workspaceAnalyticsValidators,
@@ -172,6 +174,14 @@ router.get(
   workspaceAnalyticsValidators,
   validateRequest,
   getWorkspaceAnalytics
+);
+
+router.post(
+  "/:id/extract",
+  workspaceIdValidator,
+  extractWorkspaceFieldsValidators,
+  validateRequest,
+  extractWorkspace
 );
 
 router

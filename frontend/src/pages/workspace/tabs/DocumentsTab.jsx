@@ -10,6 +10,7 @@ import { useAuth } from "../../../context/AuthContext";
 import {
   compareWorkspaceDocuments as compareWorkspaceDocumentsRequest,
   deleteDocument as deleteDocumentRequest,
+  extractWorkspaceFields as extractWorkspaceFieldsRequest,
   getDocumentFileBlob,
   getDocumentPreview,
   getDocuments,
@@ -31,9 +32,6 @@ import {
   StructuredExtraction,
   SummaryPanel,
 } from "../components/intelligence";
-import {
-  extractionRows,
-} from "../data/workspaceData";
 import {
   createUploadId,
   documentContentDuplicateExists,
@@ -142,6 +140,24 @@ function DocumentsTab() {
   const [extractionPrompt, setExtractionPrompt] =
     useState("all dates and dollar amounts");
 
+  const [extractionState, setExtractionState] =
+    useState({
+      columns: [
+        "field",
+        "value",
+        "type",
+        "source",
+      ],
+      rows: [],
+      documentIds: [],
+      documentName: "",
+      documentNames: [],
+      hasRun: false,
+      isLoading: false,
+      requestKey: 0,
+      error: "",
+    });
+
   const [sortConfig, setSortConfig] = useState({
     key: "field",
     direction: "asc",
@@ -166,11 +182,15 @@ function DocumentsTab() {
   );
 
   const sortedExtractionRows = useMemo(() => {
-    const rows = [...extractionRows];
+    const rows = [...extractionState.rows];
 
     rows.sort((first, second) => {
-      const firstValue = first[sortConfig.key];
-      const secondValue = second[sortConfig.key];
+      const firstValue = String(
+        first[sortConfig.key] ?? ""
+      ).toLowerCase();
+      const secondValue = String(
+        second[sortConfig.key] ?? ""
+      ).toLowerCase();
 
       if (firstValue < secondValue) {
         return sortConfig.direction === "asc" ? -1 : 1;
@@ -185,7 +205,7 @@ function DocumentsTab() {
 
     
     return rows;
-  }, [sortConfig]);
+  }, [extractionState.rows, sortConfig]);
 
   const uploadError = useMemo(
     () =>
@@ -1242,10 +1262,134 @@ function DocumentsTab() {
     setExtractionPrompt(
       `dates, dollar amounts, and obligations in ${document.name}`
     );
+    setExtractionState((current) => ({
+      ...current,
+      documentIds: [document.id],
+      documentName: document.name,
+      documentNames: [document.name],
+      hasRun: false,
+      isLoading: false,
+      error: "",
+      rows: [],
+    }));
     extractionRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "start",
     });
+  }
+
+  function clearExtractionFocus() {
+    setExtractionState((current) => ({
+      ...current,
+      documentIds: [],
+      documentName: "",
+      documentNames: [],
+      hasRun: false,
+      error: "",
+      rows: [],
+    }));
+  }
+
+  function handleExtractionDocumentSelection(
+    documentIds
+  ) {
+    const selectedIds = Array.isArray(documentIds)
+      ? documentIds
+      : [];
+    const selectedDocuments = documents.filter((document) =>
+      selectedIds.includes(document.id)
+    );
+
+    setExtractionState((current) => ({
+      ...current,
+      documentIds: selectedIds,
+      documentName:
+        selectedDocuments.length === 1
+          ? selectedDocuments[0].name
+          : "",
+      documentNames: selectedDocuments.map(
+        (document) => document.name
+      ),
+      hasRun: false,
+      error: "",
+      rows: [],
+    }));
+  }
+
+  async function runExtraction() {
+    if (!workspaceId || !token) {
+      return;
+    }
+
+    const prompt = extractionPrompt.trim();
+
+    if (!prompt) {
+      setExtractionState((current) => ({
+        ...current,
+        error: "Enter an extraction prompt.",
+      }));
+      return;
+    }
+
+    const nextRequestKey =
+      extractionState.requestKey + 1;
+    const documentIds =
+      extractionState.documentIds.length > 0
+        ? extractionState.documentIds
+        : undefined;
+
+    setExtractionState((current) => ({
+      ...current,
+      isLoading: true,
+      hasRun: true,
+      requestKey: nextRequestKey,
+      error: "",
+      rows: [],
+    }));
+
+    try {
+      const response =
+        await extractWorkspaceFieldsRequest(
+          workspaceId,
+          {
+            prompt,
+            documentIds,
+          },
+          token
+        );
+
+      setExtractionState((current) => {
+        if (current.requestKey !== nextRequestKey) {
+          return current;
+        }
+
+        return {
+          ...current,
+          columns:
+            response.columns?.length > 0
+              ? response.columns
+              : current.columns,
+          rows: response.rows ?? [],
+          isLoading: false,
+          error: "",
+        };
+      });
+    } catch (error) {
+      setExtractionState((current) => {
+        if (current.requestKey !== nextRequestKey) {
+          return current;
+        }
+
+        return {
+          ...current,
+          rows: [],
+          isLoading: false,
+          error:
+            error.message ||
+            "Unable to extract structured fields.",
+        };
+      });
+    }
   }
 
   function handleSort(key) {
@@ -1382,9 +1526,16 @@ function DocumentsTab() {
 
       <StructuredExtraction
         panelRef={extractionRef}
+        documents={documents}
         extractionPrompt={extractionPrompt}
+        extractionState={extractionState}
         rows={sortedExtractionRows}
         onExtractionPromptChange={setExtractionPrompt}
+        onClearDocumentFocus={clearExtractionFocus}
+        onDocumentSelectionChange={
+          handleExtractionDocumentSelection
+        }
+        onExtract={runExtraction}
         onSort={handleSort}
         onExportCsv={exportCsv}
       />

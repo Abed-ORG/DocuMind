@@ -1,16 +1,106 @@
 import {
+  AlertCircle,
+  Check,
+  ChevronDown,
   Download,
+  FileText,
+  Loader2,
   Table2,
+  X,
 } from "lucide-react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 function StructuredExtraction({
   panelRef,
+  documents,
   extractionPrompt,
+  extractionState,
   rows,
   onExtractionPromptChange,
+  onClearDocumentFocus,
+  onDocumentSelectionChange,
+  onExtract,
   onSort,
   onExportCsv,
 }) {
+  const [isReferenceMenuOpen, setIsReferenceMenuOpen] =
+    useState(false);
+  const referenceMenuRef = useRef(null);
+  const columns =
+    extractionState?.columns?.length > 0
+      ? extractionState.columns
+      : [
+          "field",
+          "value",
+          "type",
+          "source",
+        ];
+  const readyDocuments = documents.filter(
+    (document) => document.status === "ready"
+  );
+  const selectedDocumentIds =
+    extractionState?.documentIds ?? [];
+  const selectedDocumentIdSet = new Set(
+    selectedDocumentIds
+  );
+  const selectedDocumentNames = readyDocuments
+    .filter((document) =>
+      selectedDocumentIdSet.has(document.id)
+    )
+    .map((document) => document.name);
+  const referenceNames =
+    selectedDocumentNames.length > 0
+      ? selectedDocumentNames
+      : extractionState?.documentNames ?? [];
+  const hasRows = rows.length > 0;
+  const isFocused = referenceNames.length > 0;
+  const referenceLabel =
+    referenceNames.length > 0
+      ? `${referenceNames.length} file${
+          referenceNames.length === 1 ? "" : "s"
+        }`
+      : "All ready files";
+  const canExtract =
+    Boolean(extractionPrompt.trim()) &&
+    !extractionState?.isLoading;
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (
+        referenceMenuRef.current &&
+        !referenceMenuRef.current.contains(event.target)
+      ) {
+        setIsReferenceMenuOpen(false);
+      }
+    }
+
+    document.addEventListener(
+      "mousedown",
+      handleClickOutside
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside
+      );
+    };
+  }, []);
+
+  function toggleDocument(documentId) {
+    const nextDocumentIds = selectedDocumentIdSet.has(
+      documentId
+    )
+      ? selectedDocumentIds.filter((id) => id !== documentId)
+      : [...selectedDocumentIds, documentId];
+
+    onDocumentSelectionChange(nextDocumentIds);
+  }
+
   return (
     <section className="extraction-panel" ref={panelRef}>
       <header className="panel-header">
@@ -22,16 +112,93 @@ function StructuredExtraction({
           className="secondary-action"
           type="button"
           onClick={onExportCsv}
+          disabled={!hasRows}
         >
           <Download size={17} />
           Export CSV
         </button>
       </header>
 
+      <div
+        className="extraction-reference"
+        ref={referenceMenuRef}
+      >
+        <button
+          className="secondary-action"
+          type="button"
+          onClick={() =>
+            setIsReferenceMenuOpen((current) => !current)
+          }
+          aria-expanded={isReferenceMenuOpen}
+          aria-haspopup="menu"
+        >
+          <FileText size={17} />
+          {referenceLabel}
+          <ChevronDown size={16} />
+        </button>
+
+        {isReferenceMenuOpen && (
+          <div
+            className="extraction-reference-menu"
+            role="menu"
+          >
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={selectedDocumentIds.length === 0}
+              onClick={() => onDocumentSelectionChange([])}
+            >
+              <span>
+                {selectedDocumentIds.length === 0 && (
+                  <Check size={15} />
+                )}
+              </span>
+              All ready files
+            </button>
+
+            {readyDocuments.map((document) => {
+              const isSelected = selectedDocumentIdSet.has(
+                document.id
+              );
+
+              return (
+                <button
+                  key={document.id}
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={isSelected}
+                  onClick={() => toggleDocument(document.id)}
+                >
+                  <span>
+                    {isSelected && <Check size={15} />}
+                  </span>
+                  {document.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div className="extract-control">
         <label htmlFor="extract-prompt">
           What do you want to extract?
         </label>
+        {isFocused && (
+          <div className="extraction-focus">
+            <span>
+              Referencing {referenceNames.join(", ")}
+            </span>
+            <button
+              type="button"
+              onClick={onClearDocumentFocus}
+              aria-label="Clear extraction document focus"
+              title="Clear document focus"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
         <div>
           <input
             id="extract-prompt"
@@ -41,18 +208,36 @@ function StructuredExtraction({
             }
             placeholder="Example: all dates and dollar amounts"
           />
-          <button className="primary-action" type="button">
-            <Table2 size={17} />
-            Extract
+          <button
+            className="primary-action"
+            type="button"
+            onClick={onExtract}
+            disabled={!canExtract}
+          >
+            {extractionState?.isLoading ? (
+              <Loader2 className="spinner" size={17} />
+            ) : (
+              <Table2 size={17} />
+            )}
+            {extractionState?.isLoading
+              ? "Extracting"
+              : "Extract"}
           </button>
         </div>
       </div>
+
+      {extractionState?.error && (
+        <div className="extraction-status is-error" role="alert">
+          <AlertCircle size={17} />
+          {extractionState.error}
+        </div>
+      )}
 
       <div className="extraction-table-wrap">
         <table className="extraction-table">
           <thead>
             <tr>
-              {["field", "value", "type", "source"].map((key) => (
+              {columns.map((key) => (
                 <th key={key}>
                   <button
                     type="button"
@@ -65,14 +250,36 @@ function StructuredExtraction({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={`${row.field}-${row.source}`}>
-                <td>{row.field}</td>
-                <td>{row.value}</td>
-                <td>{row.type}</td>
-                <td>{row.source}</td>
+            {extractionState?.isLoading ? (
+              <tr>
+                <td colSpan={columns.length}>
+                  <div className="loading-row">
+                    <Loader2 className="spinner" size={18} />
+                    Extracting structured rows
+                  </div>
+                </td>
               </tr>
-            ))}
+            ) : hasRows ? (
+              rows.map((row, index) => (
+                <tr
+                  key={`${row.field}-${row.source}-${index}`}
+                >
+                  {columns.map((column) => (
+                    <td key={column}>
+                      {row[column] ?? ""}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={columns.length}>
+                  {extractionState?.hasRun
+                    ? "No matching rows were found in the retrieved sources."
+                    : "Run extraction to populate this table."}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

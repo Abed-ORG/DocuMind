@@ -57,6 +57,7 @@ export function mapApiDocument(document) {
     processingProgress:
       document.processingProgress ?? 0,
     processingError: document.processingError ?? "",
+    updatedAt: document.updatedAt,
   };
 }
 
