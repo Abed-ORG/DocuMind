@@ -1,6 +1,7 @@
 import {
   body,
   param,
+  query,
 } from "express-validator";
 
 const hexColorPattern =
@@ -57,6 +58,32 @@ export const updateWorkspaceValidators = [
     .trim()
     .matches(hexColorPattern)
     .withMessage("Workspace color must be a valid hex color."),
+];
+
+export const workspaceAnalyticsValidators = [
+  query("days")
+    .optional()
+    .isInt({
+      min: 7,
+      max: 90,
+    })
+    .withMessage(
+      "Analytics range must be between 7 and 90 days."
+    )
+    .custom((value) =>
+      [
+        "7",
+        "30",
+        "90",
+        7,
+        30,
+        90,
+      ].includes(value)
+    )
+    .withMessage(
+      "Analytics range must be 7, 30, or 90 days."
+    )
+    .toInt(),
 ];
 
 export const searchWorkspaceValidators = [
