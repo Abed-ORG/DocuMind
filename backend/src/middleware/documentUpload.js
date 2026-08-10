@@ -11,7 +11,7 @@ const currentDirectory = path.dirname(
 
 const uploadDirectory = path.resolve(
   currentDirectory,
-  "../../uploads/documents"
+  "../../uploads/tmp"
 );
 
 const maxDocumentFileSize =
