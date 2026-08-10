@@ -33,6 +33,11 @@ import {
   SummaryPanel,
 } from "../components/intelligence";
 import {
+  createCsvPreviewTableFromText,
+  getCitationEvidenceText,
+  getDocumentFormatFromName,
+} from "../utils/citationUtils";
+import {
   createUploadId,
   documentContentDuplicateExists,
   formatFileSize,
@@ -121,6 +126,20 @@ function DocumentsTab() {
       fileUrl: "",
     });
 
+  const [activeCitation, setActiveCitation] =
+    useState(null);
+
+  const [citationPreviewState, setCitationPreviewState] =
+    useState({
+      type: "text",
+      isLoading: false,
+      error: "",
+      pages: [],
+      table: null,
+      html: "",
+      fileUrl: "",
+    });
+
   const [summaryState, setSummaryState] =
     useState(null);
 
@@ -180,6 +199,31 @@ function DocumentsTab() {
   const summaryDocument = documents.find(
     (document) => document.id === summaryState?.documentId
   );
+
+  const activeCitationDocument = useMemo(() => {
+    if (!activeCitation) {
+      return null;
+    }
+
+    return (
+      documents.find(
+        (document) =>
+          document.id === activeCitation.documentId
+      ) ?? {
+        id: activeCitation.documentId,
+        name:
+          activeCitation.documentName ??
+          "Cited document",
+        format: getDocumentFormatFromName(
+          activeCitation.documentName
+        ),
+        pages: activeCitation.pageNumber ?? 0,
+        size: "",
+        uploadedAt: "",
+        status: "ready",
+      }
+    );
+  }, [activeCitation, documents]);
 
   const sortedExtractionRows = useMemo(() => {
     const rows = [...extractionState.rows];
@@ -441,6 +485,126 @@ function DocumentsTab() {
 
   useEffect(() => {
     let isActive = true;
+    let fileUrl = "";
+
+    async function loadCitationPreview() {
+      if (
+        !activeCitation?.documentId ||
+        !workspaceId ||
+        !token
+      ) {
+        setCitationPreviewState({
+          type: "text",
+          isLoading: false,
+          error: "",
+          pages: [],
+          table: null,
+          html: "",
+          fileUrl: "",
+        });
+        return;
+      }
+
+      setCitationPreviewState({
+        type: "text",
+        isLoading: true,
+        error: "",
+        pages: [],
+        table: null,
+        html: "",
+        fileUrl: "",
+      });
+
+      try {
+        const response = await getDocumentPreview(
+          workspaceId,
+          activeCitation.documentId,
+          token
+        );
+        const previewType =
+          response.preview?.type ?? "text";
+        let previewTable =
+          response.preview?.table ?? null;
+
+        if (previewType === "file") {
+          fileUrl = URL.createObjectURL(
+            await getDocumentFileBlob(
+              workspaceId,
+              activeCitation.documentId,
+              token
+            )
+          );
+        } else if (previewType === "table") {
+          const csvBlob = await getDocumentFileBlob(
+            workspaceId,
+            activeCitation.documentId,
+            token
+          );
+          const csvText = await csvBlob.text();
+
+          previewTable = createCsvPreviewTableFromText({
+            csvText,
+            citationText:
+              getCitationEvidenceText(activeCitation),
+          });
+        }
+
+        if (isActive) {
+          setCitationPreviewState({
+            type: previewType,
+            isLoading: false,
+            error: "",
+            pages: Array.isArray(
+              response.preview?.pages
+            )
+              ? response.preview.pages
+              : [],
+            table: previewTable,
+            html: response.preview?.html ?? "",
+            fileUrl,
+          });
+        } else if (fileUrl) {
+          URL.revokeObjectURL(fileUrl);
+        }
+      } catch (error) {
+        if (isActive) {
+          setCitationPreviewState({
+            type: "text",
+            isLoading: false,
+            error:
+              error.message ||
+              "Unable to load citation preview.",
+            pages: [],
+            table: null,
+            html: "",
+            fileUrl: "",
+          });
+        }
+      }
+    }
+
+    loadCitationPreview();
+
+    return () => {
+      isActive = false;
+
+      if (fileUrl) {
+        URL.revokeObjectURL(fileUrl);
+      }
+    };
+  }, [
+    activeCitation?.documentId,
+    activeCitation?.label,
+    activeCitation?.pageNumber,
+    activeCitation?.text,
+    activeCitation?.answerText,
+    activeCitation,
+    workspaceId,
+    token,
+  ]);
+
+  useEffect(() => {
+    let isActive = true;
 
     async function loadSummary() {
       if (
@@ -532,7 +696,6 @@ function DocumentsTab() {
     summaryState?.force,
     summaryState?.isLoading,
     summaryState?.requestKey,
-    summaryState?.force,
     workspaceId,
     token,
   ]);
@@ -1522,6 +1685,12 @@ function DocumentsTab() {
         comparison={comparisonSelection}
         onComparisonChange={setComparison}
         onCompare={handleCompare}
+        onCitationClick={(citation) =>
+          setActiveCitation({
+            ...citation,
+            answerText: comparisonSelection.answer,
+          })
+        }
       />
 
       <StructuredExtraction
@@ -1551,6 +1720,29 @@ function DocumentsTab() {
         fileUrl={previewState.fileUrl}
         onClose={() => setPreviewDocument(null)}
       />
+
+      {activeCitation && (
+        <PreviewPanel
+          citation={activeCitation}
+          citationHighlightText={
+            getCitationEvidenceText(activeCitation)
+          }
+          document={activeCitationDocument}
+          error={citationPreviewState.error}
+          fileUrl={citationPreviewState.fileUrl}
+          html={citationPreviewState.html}
+          initialPageNumber={
+            activeCitation.pageNumber
+          }
+          isLoading={
+            citationPreviewState.isLoading
+          }
+          pages={citationPreviewState.pages}
+          previewType={citationPreviewState.type}
+          table={citationPreviewState.table}
+          onClose={() => setActiveCitation(null)}
+        />
+      )}
     </div>
   );
 }
