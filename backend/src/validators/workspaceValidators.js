@@ -1,6 +1,7 @@
 import {
   body,
   param,
+  query,
 } from "express-validator";
 
 const hexColorPattern =
@@ -57,6 +58,32 @@ export const updateWorkspaceValidators = [
     .trim()
     .matches(hexColorPattern)
     .withMessage("Workspace color must be a valid hex color."),
+];
+
+export const workspaceAnalyticsValidators = [
+  query("days")
+    .optional()
+    .isInt({
+      min: 7,
+      max: 90,
+    })
+    .withMessage(
+      "Analytics range must be between 7 and 90 days."
+    )
+    .custom((value) =>
+      [
+        "7",
+        "30",
+        "90",
+        7,
+        30,
+        90,
+      ].includes(value)
+    )
+    .withMessage(
+      "Analytics range must be 7, 30, or 90 days."
+    )
+    .toInt(),
 ];
 
 export const searchWorkspaceValidators = [
@@ -182,4 +209,37 @@ export const compareWorkspaceDocumentsValidators = [
     })
     .withMessage("Limit must be between 1 and 10.")
     .toInt(),
+];
+
+export const extractWorkspaceFieldsValidators = [
+  body("prompt")
+    .trim()
+    .notEmpty()
+    .withMessage("Extraction prompt is required.")
+    .isLength({ max: 2000 })
+    .withMessage(
+      "Extraction prompt cannot exceed 2000 characters."
+    ),
+
+  body("limit")
+    .optional()
+    .isInt({
+      min: 1,
+      max: 20,
+    })
+    .withMessage("Limit must be between 1 and 20.")
+    .toInt(),
+
+  body("documentIds")
+    .optional()
+    .isArray({ max: 20 })
+    .withMessage(
+      "Document ids must be an array with at most 20 items."
+    ),
+
+  body("documentIds.*")
+    .optional()
+    .trim()
+    .isMongoId()
+    .withMessage("Document id is invalid."),
 ];

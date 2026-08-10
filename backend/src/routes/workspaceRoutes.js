@@ -4,6 +4,7 @@ import {
   createWorkspace,
   deleteWorkspace,
   getWorkspace,
+  getWorkspaceAnalytics,
   getWorkspaces,
   updateWorkspace,
 } from "../controllers/workspaceController.js";
@@ -18,6 +19,7 @@ import {
 import {
   answerWorkspace,
   compareWorkspace,
+  extractWorkspace,
   searchWorkspace,
 } from "../controllers/searchController.js";
 import {
@@ -51,8 +53,10 @@ import {
   answerWorkspaceQuestionValidators,
   compareWorkspaceDocumentsValidators,
   createWorkspaceValidators,
+  extractWorkspaceFieldsValidators,
   searchWorkspaceValidators,
   updateWorkspaceValidators,
+  workspaceAnalyticsValidators,
   workspaceIdValidator,
 } from "../validators/workspaceValidators.js";
 
@@ -162,6 +166,22 @@ router.post(
   compareWorkspaceDocumentsValidators,
   validateRequest,
   compareWorkspace
+);
+
+router.get(
+  "/:id/analytics",
+  workspaceIdValidator,
+  workspaceAnalyticsValidators,
+  validateRequest,
+  getWorkspaceAnalytics
+);
+
+router.post(
+  "/:id/extract",
+  workspaceIdValidator,
+  extractWorkspaceFieldsValidators,
+  validateRequest,
+  extractWorkspace
 );
 
 router

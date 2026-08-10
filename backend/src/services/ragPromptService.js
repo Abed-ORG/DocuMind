@@ -292,3 +292,52 @@ export function buildComparisonPrompt({
     sources,
   };
 }
+
+const extractionSystemInstruction = [
+  "You are DocuMind, a source-grounded structured extraction assistant.",
+  "Extract only the fields requested by the user from the provided source chunks.",
+  "Return valid JSON only. Do not wrap the JSON in markdown fences or add explanatory text.",
+  "Use this exact compact JSON shape: {\"columns\":[\"field\",\"value\",\"type\",\"source\"],\"rows\":[[\"field\",\"value\",\"type\",\"source\"]]}.",
+  "Each row must represent one extracted item supported by a source chunk.",
+  "When multiple details belong to the same entity, combine them into one row instead of creating separate rows.",
+  "The source value must cite the document and location in plain text, such as \"Contract.pdf, p. 2\" or \"Notes.txt, chunk 4\".",
+  "Return at most 25 rows. Prefer the strongest, clearest matches when there are more than 25 matching items.",
+  "Keep every cell concise. Do not include evidence, explanations, nested objects, or extra keys.",
+  "If the provided sources do not contain matching items, return {\"columns\":[\"field\",\"value\",\"type\",\"source\"],\"rows\":[]}.",
+  "Do not invent fields, values, documents, page numbers, chunk indexes, or facts.",
+].join("\n");
+
+export function buildStructuredExtractionPrompt({
+  prompt,
+  sourceChunks = [],
+  maxChunkCharacters = defaultMaxChunkCharacters,
+  maxPromptCharacters = defaultMaxQuestionCharacters,
+} = {}) {
+  const normalizedPrompt = normalizeText(
+    prompt,
+    maxPromptCharacters
+  );
+
+  if (!normalizedPrompt) {
+    throw new Error("Extraction prompt is required.");
+  }
+
+  const sources = normalizeSourceChunks(
+    sourceChunks,
+    maxChunkCharacters
+  );
+  const userPrompt = [
+    "Extraction request:",
+    normalizedPrompt,
+    "",
+    "Source chunks:",
+    formatSourceChunks(sources),
+  ].join("\n");
+
+  return {
+    systemInstruction: extractionSystemInstruction,
+    userPrompt,
+    prompt: normalizedPrompt,
+    sources,
+  };
+}

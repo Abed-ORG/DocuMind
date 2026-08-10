@@ -112,6 +112,28 @@ const documentSchema = new mongoose.Schema(
       required: [true, "File path is required."],
       trim: true,
     },
+
+    storageProvider: {
+      type: String,
+      enum: {
+        values: ["local", "r2"],
+        message:
+          "Storage provider must be local or r2.",
+      },
+      default: "local",
+    },
+
+    storageKey: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    storageBucket: {
+      type: String,
+      trim: true,
+      default: "",
+    },
   },
   {
     timestamps: true,

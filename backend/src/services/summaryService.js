@@ -15,9 +15,15 @@ const summaryLevelAliases = new Map([
 ]);
 
 const maxOutputTokensByLevel = {
-  "one-liner": 128,
-  executive: 800,
-  detailed: 1800,
+  "one-liner": 512,
+  executive: 1800,
+  detailed: 4096,
+};
+
+const fallbackMaxOutputTokensByLevel = {
+  "one-liner": 1024,
+  executive: 3200,
+  detailed: 6000,
 };
 
 const promptByLevel = {
@@ -222,6 +228,35 @@ function normalizeText(value) {
     .trim();
 }
 
+function normalizeGeneratedSummaryContent({
+  content,
+  level,
+}) {
+  const normalizedContent = getResponseText({
+    text: content,
+  });
+
+  if (level !== "one-liner") {
+    return normalizedContent;
+  }
+
+  const sentenceMatch = normalizedContent.match(
+    /^.+?(?:[.!?](?=\s|$)|$)/
+  );
+  const sentence = String(
+    sentenceMatch?.[0] ?? normalizedContent
+  )
+    .replace(/\s+/g, " ")
+    .trim();
+  const words = sentence.split(/\s+/).filter(Boolean);
+
+  if (words.length <= 45) {
+    return sentence;
+  }
+
+  return `${words.slice(0, 45).join(" ")}.`;
+}
+
 function formatChunk(chunk) {
   const metadata = [
     `Chunk: ${chunk.chunkIndex}`,
@@ -336,59 +371,107 @@ async function generateSummaryContent({
     chunks,
     level,
   });
-  let response;
+  const tokenBudgets = [
+    maxOutputTokensByLevel[level],
+    fallbackMaxOutputTokensByLevel[level],
+  ].filter(
+    (value, index, values) =>
+      Number.isFinite(value) &&
+      value > 0 &&
+      values.indexOf(value) === index
+  );
 
-  try {
-    response = await withRetry(
-      () =>
-        withTimeout(
-          client.models.generateContent({
-            model: selectedModel,
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  {
-                    text: prompt.userPrompt,
-                  },
-                ],
+  for (const [
+    tokenBudgetIndex,
+    maxOutputTokens,
+  ] of tokenBudgets.entries()) {
+    let response;
+
+    try {
+      response = await withRetry(
+        () =>
+          withTimeout(
+            client.models.generateContent({
+              model: selectedModel,
+              contents: [
+                {
+                  role: "user",
+                  parts: [
+                    {
+                      text: prompt.userPrompt,
+                    },
+                  ],
+                },
+              ],
+              config: {
+                systemInstruction:
+                  prompt.systemInstruction,
+                temperature: 0.2,
+                maxOutputTokens,
               },
-            ],
-            config: {
-              systemInstruction:
-                prompt.systemInstruction,
-              temperature: 0.2,
-              maxOutputTokens:
-                maxOutputTokensByLevel[level],
-            },
-          }),
-          timeoutMs ?? env.geminiGenerativeTimeoutMs
-        ),
-      retry
-    );
-  } catch (error) {
-    if (isRetryableGeminiError(error)) {
-      throw createSummaryGenerationError({
-        message:
-          "The AI provider could not complete the summary. Please retry.",
-        finishReason:
-          error?.status === 429
-            ? "RATE_LIMIT"
-            : error?.code ?? error?.name ?? "REQUEST_FAILED",
-      });
+            }),
+            timeoutMs ?? env.geminiGenerativeTimeoutMs
+          ),
+        retry
+      );
+    } catch (error) {
+      if (isRetryableGeminiError(error)) {
+        throw createSummaryGenerationError({
+          message:
+            "The AI provider could not complete the summary. Please retry.",
+          finishReason:
+            error?.status === 429
+              ? "RATE_LIMIT"
+              : error?.code ?? error?.name ?? "REQUEST_FAILED",
+        });
+      }
+
+      throw error;
     }
 
-    throw error;
+    const content = normalizeGeneratedSummaryContent({
+      content: getResponseText(response),
+      level,
+    });
+
+    try {
+      assertCompleteSummary(response, content);
+    } catch (error) {
+      const hasFallbackBudget =
+        tokenBudgetIndex < tokenBudgets.length - 1;
+
+      if (
+        level === "one-liner" &&
+        error.finishReason === "MAX_TOKENS" &&
+        content
+      ) {
+        return {
+          content,
+          model: selectedModel,
+        };
+      }
+
+      if (
+        error.finishReason === "MAX_TOKENS" &&
+        hasFallbackBudget
+      ) {
+        continue;
+      }
+
+      throw error;
+    }
+
+    return {
+      content,
+      model: selectedModel,
+    };
   }
 
-  const content = getResponseText(response);
-
-  assertCompleteSummary(response, content);
-
-  return {
-    content,
-    model: selectedModel,
-  };
+  throw createSummaryGenerationError({
+    message:
+      "The AI summary was cut off before it finished. Please retry.",
+    finishReason: "MAX_TOKENS",
+  });
 }
 
 export async function summarizeDocument({

@@ -4,6 +4,7 @@ import { env } from "../config/env.js";
 import {
   buildComparisonPrompt,
   buildRagPrompt,
+  buildStructuredExtractionPrompt,
 } from "./ragPromptService.js";
 import { searchWorkspaceChunks } from "./vectorSearchService.js";
 
@@ -12,6 +13,7 @@ const followUpPattern =
 const explicitFilePattern =
   /\b[\w .()[\]-]+\.(pdf|docx|txt|csv)\b/i;
 const comparisonMaxChunkCharacters = 2200;
+const structuredExtractionMaxChunkCharacters = 1200;
 
 const defaultRetryOptions = {
   maxRetries: 2,
@@ -125,6 +127,124 @@ async function withRetry(operation, options = {}) {
 
 function getResponseText(response) {
   return String(response?.text ?? "").trim();
+}
+
+function stripJsonCodeFence(text) {
+  return String(text ?? "")
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+}
+
+function parseJsonObject(text) {
+  const normalizedText = stripJsonCodeFence(text);
+
+  try {
+    return JSON.parse(normalizedText);
+  } catch {
+    const firstBrace = normalizedText.indexOf("{");
+    const lastBrace = normalizedText.lastIndexOf("}");
+
+    if (firstBrace === -1 || lastBrace === -1) {
+      throw new Error("The AI did not return valid JSON.");
+    }
+
+    return JSON.parse(
+      normalizedText.slice(firstBrace, lastBrace + 1)
+    );
+  }
+}
+
+function normalizeExtractionValue(value, maxLength = 1000) {
+  const normalizedValue = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return normalizedValue.length > maxLength
+    ? `${normalizedValue.slice(0, maxLength).trim()}...`
+    : normalizedValue;
+}
+
+function normalizeExtractionRows(rows) {
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+
+  return rows
+    .map((row) => {
+      if (Array.isArray(row)) {
+        return {
+          field: normalizeExtractionValue(row[0], 180),
+          value: normalizeExtractionValue(row[1]),
+          type: normalizeExtractionValue(row[2], 120),
+          source: normalizeExtractionValue(row[3], 260),
+          documentName: "",
+          pageNumber: null,
+          chunkIndex: null,
+          evidence: "",
+        };
+      }
+
+      return {
+        field: normalizeExtractionValue(
+          row?.field ?? row?.f,
+          180
+        ),
+        value: normalizeExtractionValue(
+          row?.value ?? row?.v
+        ),
+        type: normalizeExtractionValue(
+          row?.type ?? row?.t,
+          120
+        ),
+        source: normalizeExtractionValue(
+          row?.source ?? row?.s,
+          260
+        ),
+        documentName: normalizeExtractionValue(
+          row?.documentName,
+          255
+        ),
+        pageNumber:
+          Number.isInteger(Number(row?.pageNumber)) &&
+          Number(row.pageNumber) > 0
+            ? Number(row.pageNumber)
+            : null,
+        chunkIndex:
+          Number.isInteger(Number(row?.chunkIndex)) &&
+          Number(row.chunkIndex) >= 0
+            ? Number(row.chunkIndex)
+            : null,
+        evidence: normalizeExtractionValue(
+          row?.evidence,
+          1200
+        ),
+      };
+    })
+    .filter(
+      (row) =>
+        row.field ||
+        row.value ||
+        row.type ||
+        row.source
+    );
+}
+
+function normalizeExtractionTable(parsedJson) {
+  const rows = Array.isArray(parsedJson)
+    ? parsedJson
+    : parsedJson?.rows;
+
+  return {
+    columns: [
+      "field",
+      "value",
+      "type",
+      "source",
+    ],
+    rows: normalizeExtractionRows(rows),
+  };
 }
 
 function getResponseFinishReason(response) {
@@ -506,6 +626,98 @@ export async function generateComparisonAnswer({
   };
 }
 
+export async function generateStructuredExtraction({
+  prompt,
+  sourceChunks = [],
+  model,
+  timeoutMs,
+  retry,
+  temperature = 0.1,
+  maxOutputTokens = 6000,
+} = {}) {
+  const extractionPrompt =
+    buildStructuredExtractionPrompt({
+      prompt,
+      sourceChunks,
+      maxChunkCharacters:
+        structuredExtractionMaxChunkCharacters,
+    });
+  const client = getGeminiClient();
+  const selectedModel =
+    model ?? env.geminiGenerativeModel;
+  let response;
+
+  try {
+    response = await withRetry(
+      () =>
+        withTimeout(
+          client.models.generateContent({
+            model: selectedModel,
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text: extractionPrompt.userPrompt,
+                  },
+                ],
+              },
+            ],
+            config: {
+              systemInstruction:
+                extractionPrompt.systemInstruction,
+              temperature,
+              maxOutputTokens,
+            },
+          }),
+          timeoutMs ?? env.geminiGenerativeTimeoutMs
+        ),
+      retry
+    );
+  } catch (error) {
+    throw createIncompleteAnswerError({
+      message:
+        "The AI provider could not complete the extraction. Please retry.",
+      finishReason:
+        error?.status === 429
+          ? "RATE_LIMIT"
+          : error?.status ??
+            error?.code ??
+            error?.name ??
+            "REQUEST_FAILED",
+    });
+  }
+
+  const answer = getResponseText(response);
+
+  assertCompleteAnswer(response, answer);
+
+  let table;
+
+  try {
+    table = normalizeExtractionTable(
+      parseJsonObject(answer)
+    );
+  } catch (error) {
+    const incompleteError =
+      createIncompleteAnswerError({
+        message:
+          "The AI returned extraction data that could not be parsed. Please retry.",
+        finishReason: "INVALID_JSON",
+      });
+
+    incompleteError.cause = error;
+    throw incompleteError;
+  }
+
+  return {
+    ...table,
+    rawJson: answer,
+    sources: extractionPrompt.sources,
+    model: selectedModel,
+  };
+}
+
 export async function compareWorkspaceDocuments({
   workspaceId,
   topic,
@@ -539,5 +751,40 @@ export async function compareWorkspaceDocuments({
     secondDocumentName,
     firstSourceChunks,
     secondSourceChunks,
+  });
+}
+
+export async function extractWorkspaceFields({
+  workspaceId,
+  prompt,
+  limit = 4,
+  documentIds,
+} = {}) {
+  const sourceChunks = await searchWorkspaceChunks({
+    workspaceId,
+    query: prompt,
+    limit,
+    documentIds,
+  });
+
+  if (sourceChunks.length === 0) {
+    return {
+      columns: [
+        "field",
+        "value",
+        "type",
+        "source",
+      ],
+      rows: [],
+      rawJson:
+        "{\"columns\":[\"field\",\"value\",\"type\",\"source\"],\"rows\":[]}",
+      sources: [],
+      model: env.geminiGenerativeModel,
+    };
+  }
+
+  return generateStructuredExtraction({
+    prompt,
+    sourceChunks,
   });
 }

@@ -10,6 +10,7 @@ import { useAuth } from "../../../context/AuthContext";
 import {
   compareWorkspaceDocuments as compareWorkspaceDocumentsRequest,
   deleteDocument as deleteDocumentRequest,
+  extractWorkspaceFields as extractWorkspaceFieldsRequest,
   getDocumentFileBlob,
   getDocumentPreview,
   getDocuments,
@@ -32,8 +33,10 @@ import {
   SummaryPanel,
 } from "../components/intelligence";
 import {
-  extractionRows,
-} from "../data/workspaceData";
+  createCsvPreviewTableFromText,
+  getCitationEvidenceText,
+  getDocumentFormatFromName,
+} from "../utils/citationUtils";
 import {
   createUploadId,
   documentContentDuplicateExists,
@@ -123,6 +126,20 @@ function DocumentsTab() {
       fileUrl: "",
     });
 
+  const [activeCitation, setActiveCitation] =
+    useState(null);
+
+  const [citationPreviewState, setCitationPreviewState] =
+    useState({
+      type: "text",
+      isLoading: false,
+      error: "",
+      pages: [],
+      table: null,
+      html: "",
+      fileUrl: "",
+    });
+
   const [summaryState, setSummaryState] =
     useState(null);
 
@@ -141,6 +158,24 @@ function DocumentsTab() {
 
   const [extractionPrompt, setExtractionPrompt] =
     useState("all dates and dollar amounts");
+
+  const [extractionState, setExtractionState] =
+    useState({
+      columns: [
+        "field",
+        "value",
+        "type",
+        "source",
+      ],
+      rows: [],
+      documentIds: [],
+      documentName: "",
+      documentNames: [],
+      hasRun: false,
+      isLoading: false,
+      requestKey: 0,
+      error: "",
+    });
 
   const [sortConfig, setSortConfig] = useState({
     key: "field",
@@ -165,12 +200,41 @@ function DocumentsTab() {
     (document) => document.id === summaryState?.documentId
   );
 
+  const activeCitationDocument = useMemo(() => {
+    if (!activeCitation) {
+      return null;
+    }
+
+    return (
+      documents.find(
+        (document) =>
+          document.id === activeCitation.documentId
+      ) ?? {
+        id: activeCitation.documentId,
+        name:
+          activeCitation.documentName ??
+          "Cited document",
+        format: getDocumentFormatFromName(
+          activeCitation.documentName
+        ),
+        pages: activeCitation.pageNumber ?? 0,
+        size: "",
+        uploadedAt: "",
+        status: "ready",
+      }
+    );
+  }, [activeCitation, documents]);
+
   const sortedExtractionRows = useMemo(() => {
-    const rows = [...extractionRows];
+    const rows = [...extractionState.rows];
 
     rows.sort((first, second) => {
-      const firstValue = first[sortConfig.key];
-      const secondValue = second[sortConfig.key];
+      const firstValue = String(
+        first[sortConfig.key] ?? ""
+      ).toLowerCase();
+      const secondValue = String(
+        second[sortConfig.key] ?? ""
+      ).toLowerCase();
 
       if (firstValue < secondValue) {
         return sortConfig.direction === "asc" ? -1 : 1;
@@ -185,7 +249,7 @@ function DocumentsTab() {
 
     
     return rows;
-  }, [sortConfig]);
+  }, [extractionState.rows, sortConfig]);
 
   const uploadError = useMemo(
     () =>
@@ -421,6 +485,126 @@ function DocumentsTab() {
 
   useEffect(() => {
     let isActive = true;
+    let fileUrl = "";
+
+    async function loadCitationPreview() {
+      if (
+        !activeCitation?.documentId ||
+        !workspaceId ||
+        !token
+      ) {
+        setCitationPreviewState({
+          type: "text",
+          isLoading: false,
+          error: "",
+          pages: [],
+          table: null,
+          html: "",
+          fileUrl: "",
+        });
+        return;
+      }
+
+      setCitationPreviewState({
+        type: "text",
+        isLoading: true,
+        error: "",
+        pages: [],
+        table: null,
+        html: "",
+        fileUrl: "",
+      });
+
+      try {
+        const response = await getDocumentPreview(
+          workspaceId,
+          activeCitation.documentId,
+          token
+        );
+        const previewType =
+          response.preview?.type ?? "text";
+        let previewTable =
+          response.preview?.table ?? null;
+
+        if (previewType === "file") {
+          fileUrl = URL.createObjectURL(
+            await getDocumentFileBlob(
+              workspaceId,
+              activeCitation.documentId,
+              token
+            )
+          );
+        } else if (previewType === "table") {
+          const csvBlob = await getDocumentFileBlob(
+            workspaceId,
+            activeCitation.documentId,
+            token
+          );
+          const csvText = await csvBlob.text();
+
+          previewTable = createCsvPreviewTableFromText({
+            csvText,
+            citationText:
+              getCitationEvidenceText(activeCitation),
+          });
+        }
+
+        if (isActive) {
+          setCitationPreviewState({
+            type: previewType,
+            isLoading: false,
+            error: "",
+            pages: Array.isArray(
+              response.preview?.pages
+            )
+              ? response.preview.pages
+              : [],
+            table: previewTable,
+            html: response.preview?.html ?? "",
+            fileUrl,
+          });
+        } else if (fileUrl) {
+          URL.revokeObjectURL(fileUrl);
+        }
+      } catch (error) {
+        if (isActive) {
+          setCitationPreviewState({
+            type: "text",
+            isLoading: false,
+            error:
+              error.message ||
+              "Unable to load citation preview.",
+            pages: [],
+            table: null,
+            html: "",
+            fileUrl: "",
+          });
+        }
+      }
+    }
+
+    loadCitationPreview();
+
+    return () => {
+      isActive = false;
+
+      if (fileUrl) {
+        URL.revokeObjectURL(fileUrl);
+      }
+    };
+  }, [
+    activeCitation?.documentId,
+    activeCitation?.label,
+    activeCitation?.pageNumber,
+    activeCitation?.text,
+    activeCitation?.answerText,
+    activeCitation,
+    workspaceId,
+    token,
+  ]);
+
+  useEffect(() => {
+    let isActive = true;
 
     async function loadSummary() {
       if (
@@ -512,7 +696,6 @@ function DocumentsTab() {
     summaryState?.force,
     summaryState?.isLoading,
     summaryState?.requestKey,
-    summaryState?.force,
     workspaceId,
     token,
   ]);
@@ -1242,10 +1425,134 @@ function DocumentsTab() {
     setExtractionPrompt(
       `dates, dollar amounts, and obligations in ${document.name}`
     );
+    setExtractionState((current) => ({
+      ...current,
+      documentIds: [document.id],
+      documentName: document.name,
+      documentNames: [document.name],
+      hasRun: false,
+      isLoading: false,
+      error: "",
+      rows: [],
+    }));
     extractionRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "start",
     });
+  }
+
+  function clearExtractionFocus() {
+    setExtractionState((current) => ({
+      ...current,
+      documentIds: [],
+      documentName: "",
+      documentNames: [],
+      hasRun: false,
+      error: "",
+      rows: [],
+    }));
+  }
+
+  function handleExtractionDocumentSelection(
+    documentIds
+  ) {
+    const selectedIds = Array.isArray(documentIds)
+      ? documentIds
+      : [];
+    const selectedDocuments = documents.filter((document) =>
+      selectedIds.includes(document.id)
+    );
+
+    setExtractionState((current) => ({
+      ...current,
+      documentIds: selectedIds,
+      documentName:
+        selectedDocuments.length === 1
+          ? selectedDocuments[0].name
+          : "",
+      documentNames: selectedDocuments.map(
+        (document) => document.name
+      ),
+      hasRun: false,
+      error: "",
+      rows: [],
+    }));
+  }
+
+  async function runExtraction() {
+    if (!workspaceId || !token) {
+      return;
+    }
+
+    const prompt = extractionPrompt.trim();
+
+    if (!prompt) {
+      setExtractionState((current) => ({
+        ...current,
+        error: "Enter an extraction prompt.",
+      }));
+      return;
+    }
+
+    const nextRequestKey =
+      extractionState.requestKey + 1;
+    const documentIds =
+      extractionState.documentIds.length > 0
+        ? extractionState.documentIds
+        : undefined;
+
+    setExtractionState((current) => ({
+      ...current,
+      isLoading: true,
+      hasRun: true,
+      requestKey: nextRequestKey,
+      error: "",
+      rows: [],
+    }));
+
+    try {
+      const response =
+        await extractWorkspaceFieldsRequest(
+          workspaceId,
+          {
+            prompt,
+            documentIds,
+          },
+          token
+        );
+
+      setExtractionState((current) => {
+        if (current.requestKey !== nextRequestKey) {
+          return current;
+        }
+
+        return {
+          ...current,
+          columns:
+            response.columns?.length > 0
+              ? response.columns
+              : current.columns,
+          rows: response.rows ?? [],
+          isLoading: false,
+          error: "",
+        };
+      });
+    } catch (error) {
+      setExtractionState((current) => {
+        if (current.requestKey !== nextRequestKey) {
+          return current;
+        }
+
+        return {
+          ...current,
+          rows: [],
+          isLoading: false,
+          error:
+            error.message ||
+            "Unable to extract structured fields.",
+        };
+      });
+    }
   }
 
   function handleSort(key) {
@@ -1378,13 +1685,26 @@ function DocumentsTab() {
         comparison={comparisonSelection}
         onComparisonChange={setComparison}
         onCompare={handleCompare}
+        onCitationClick={(citation) =>
+          setActiveCitation({
+            ...citation,
+            answerText: comparisonSelection.answer,
+          })
+        }
       />
 
       <StructuredExtraction
         panelRef={extractionRef}
+        documents={documents}
         extractionPrompt={extractionPrompt}
+        extractionState={extractionState}
         rows={sortedExtractionRows}
         onExtractionPromptChange={setExtractionPrompt}
+        onClearDocumentFocus={clearExtractionFocus}
+        onDocumentSelectionChange={
+          handleExtractionDocumentSelection
+        }
+        onExtract={runExtraction}
         onSort={handleSort}
         onExportCsv={exportCsv}
       />
@@ -1400,6 +1720,29 @@ function DocumentsTab() {
         fileUrl={previewState.fileUrl}
         onClose={() => setPreviewDocument(null)}
       />
+
+      {activeCitation && (
+        <PreviewPanel
+          citation={activeCitation}
+          citationHighlightText={
+            getCitationEvidenceText(activeCitation)
+          }
+          document={activeCitationDocument}
+          error={citationPreviewState.error}
+          fileUrl={citationPreviewState.fileUrl}
+          html={citationPreviewState.html}
+          initialPageNumber={
+            activeCitation.pageNumber
+          }
+          isLoading={
+            citationPreviewState.isLoading
+          }
+          pages={citationPreviewState.pages}
+          previewType={citationPreviewState.type}
+          table={citationPreviewState.table}
+          onClose={() => setActiveCitation(null)}
+        />
+      )}
     </div>
   );
 }
