@@ -14,6 +14,7 @@ function WorkspaceSidebarProfile({
   isOpen,
   onToggle,
   onClose,
+  onProfileSettings,
   onLogout,
   isLoggingOut,
 }) {
@@ -67,7 +68,7 @@ function WorkspaceSidebarProfile({
             className="profile-menu-item"
             to="/dashboard"
             role="menuitem"
-            onClick={onClose}
+            onClick={onProfileSettings ?? onClose}
           >
             <Settings size={17} />
             Profile Settings

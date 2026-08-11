@@ -7,6 +7,7 @@ function WorkspaceGrid({
   onCreateWorkspace,
   onEditWorkspace,
   onDeleteWorkspace,
+  onOpenWorkspace,
 }) {
   return (
     <div className="workspace-grid">
@@ -28,6 +29,7 @@ function WorkspaceGrid({
           workspace={workspace}
           onEdit={onEditWorkspace}
           onDelete={onDeleteWorkspace}
+          onOpen={onOpenWorkspace}
         />
       ))}
     </div>

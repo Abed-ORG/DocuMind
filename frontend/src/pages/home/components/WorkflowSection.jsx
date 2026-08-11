@@ -1,8 +1,13 @@
 import { workflowSteps } from "../homeData";
+import useInView from "../hooks/useInView";
+import RobotPet from "../../workspaces/components/dashboard/RobotPet";
 
 function WorkflowSection() {
+  const [sectionRef, isInView] = useInView();
+
   return (
     <section
+      ref={sectionRef}
       id="how-it-works"
       className="landing-section workflow-section"
     >
@@ -10,6 +15,24 @@ function WorkflowSection() {
         <span className="workflow-document workflow-document-1" />
         <span className="workflow-document workflow-document-2" />
       </div>
+
+      <div
+        className={[
+          "section-robot-stage",
+          "workflow-robot-stage",
+          isInView ? "has-teleported" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        aria-hidden="true"
+      >
+        <RobotPet
+          canSleep={false}
+          className="section-robot-pet"
+          trackCursor={false}
+        />
+      </div>
+
       <div className="landing-container">
         <div className="section-heading">
           <p className="landing-eyebrow">How It Works</p>

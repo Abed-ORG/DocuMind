@@ -1,11 +1,12 @@
 import { Link } from "react-router";
 import {
   ArrowRight,
-  CheckCircle2,
   FileText,
   MessageSquareText,
   Sparkles,
 } from "lucide-react";
+
+import RobotPet from "../../workspaces/components/dashboard/RobotPet";
 
 function HeroSection({ isAuthenticated }) {
   const primaryDestination = isAuthenticated
@@ -24,6 +25,15 @@ function HeroSection({ isAuthenticated }) {
 
       <div className="landing-container hero-grid">
         <div className="hero-content">
+          <div className="hero-pet-row">
+            <RobotPet
+              autoWave
+              canSleep={false}
+              className="hero-robot-pet"
+              trackCursor={false}
+            />
+          </div>
+
           <h1>
             <span>Docu</span>
             <span className="hero-title-accent">Mind</span>
@@ -50,20 +60,6 @@ function HeroSection({ isAuthenticated }) {
             </a>
           </div>
 
-          <div className="hero-trust-row">
-            <span>
-              <CheckCircle2 size={16} />
-              Source-backed answers
-            </span>
-            <span>
-              <CheckCircle2 size={16} />
-              Workspace-first organization
-            </span>
-            <span>
-              <CheckCircle2 size={16} />
-              Export-ready results
-            </span>
-          </div>
         </div>
 
         <div className="hero-visual" aria-hidden="true">

@@ -1,8 +1,10 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import { useNavigate } from "react-router";
 
 import { useAuth } from "../../context/AuthContext";
 import { DashboardSkeleton } from "../../components/Skeleton";
@@ -17,6 +19,7 @@ import {
   DashboardState,
   MetricStrip,
 } from "./components/dashboard";
+import { ROBOT_PET_EVENT } from "./components/dashboard/RobotPet";
 import {
   DeleteWorkspaceDialog,
   WorkspaceModal,
@@ -29,7 +32,11 @@ import {
 } from "./utils/workspaceDashboardUtils";
 import "../WorkspacePages.css";
 
+const WORKSPACE_DIVE_NAVIGATION_DELAY = 940;
+
 function WorkspacesPage() {
+  const navigate = useNavigate();
+
   const {
     token,
     user,
@@ -65,6 +72,16 @@ function WorkspacesPage() {
 
   const [isDeleting, setIsDeleting] =
     useState(false);
+  const [openingWorkspaceId, setOpeningWorkspaceId] =
+    useState(null);
+  const navigationTimerRef = useRef(null);
+
+  useEffect(
+    () => () => {
+      window.clearTimeout(navigationTimerRef.current);
+    },
+    []
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -147,6 +164,40 @@ function WorkspacesPage() {
     setDeleteState({
       workspace,
     });
+  }
+
+  function openWorkspace(workspace, targetElement) {
+    if (openingWorkspaceId) {
+      return;
+    }
+
+    const targetBounds =
+      targetElement
+        .closest(".workspace-card")
+        ?.getBoundingClientRect() ??
+      targetElement.getBoundingClientRect();
+
+    setOpeningWorkspaceId(workspace.id);
+    window.dispatchEvent(
+      new CustomEvent(ROBOT_PET_EVENT, {
+        detail: {
+          action: "workspace-dive",
+          targetRect: {
+            left: targetBounds.left,
+            top: targetBounds.top,
+            width: targetBounds.width,
+            height: targetBounds.height,
+          },
+        },
+      })
+    );
+
+    navigationTimerRef.current =
+      window.setTimeout(() => {
+        navigate(
+          `/workspace/${workspace.id}/documents`
+        );
+      }, WORKSPACE_DIVE_NAVIGATION_DELAY);
   }
 
   function closeModal() {
@@ -282,8 +333,6 @@ function WorkspacesPage() {
       <div className="dashboard-shell">
         <DashboardHeader
           user={user}
-          isLoading={isLoading}
-          onCreateWorkspace={openCreateModal}
         />
 
         {isLoading ? (
@@ -319,6 +368,7 @@ function WorkspacesPage() {
                 onCreateWorkspace={openCreateModal}
                 onEditWorkspace={openEditModal}
                 onDeleteWorkspace={openDeleteDialog}
+                onOpenWorkspace={openWorkspace}
               />
             )}
           </>

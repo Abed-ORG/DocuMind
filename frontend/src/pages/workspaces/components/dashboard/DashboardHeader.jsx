@@ -1,9 +1,7 @@
-import { FolderPlus } from "lucide-react";
+import RobotPet from "./RobotPet";
 
 function DashboardHeader({
   user,
-  isLoading,
-  onCreateWorkspace,
 }) {
   return (
     <header className="dashboard-header">
@@ -21,15 +19,10 @@ function DashboardHeader({
         </p>
       </div>
 
-      <button
-        className="primary-action"
-        type="button"
-        disabled={isLoading}
-        onClick={onCreateWorkspace}
-      >
-        <FolderPlus size={18} />
-        Create Workspace
-      </button>
+      <RobotPet
+        className="dashboard-robot-pet"
+        listenForDashboardEvents
+      />
     </header>
   );
 }
