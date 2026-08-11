@@ -1,4 +1,8 @@
-import { useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   Link,
   NavLink,
@@ -13,8 +17,11 @@ import {
 
 import DocuMindLogo from "./DocuMindLogo";
 import { useAuth } from "../context/AuthContext";
+import { ROBOT_PET_EVENT } from "../pages/workspaces/components/dashboard/RobotPet";
 import { getStorageUsage } from "../utils/storageUsage";
 import "./Header.css";
+
+const LOGOUT_ANIMATION_MS = 1500;
 
 function getInitials(user) {
   const first = user?.firstName?.[0] ?? "";
@@ -28,6 +35,9 @@ function Header() {
 
   const [isProfileOpen, setIsProfileOpen] =
     useState(false);
+  const [isLogoutAnimating, setIsLogoutAnimating] =
+    useState(false);
+  const logoutTimerRef = useRef(null);
 
   const {
     user,
@@ -40,13 +50,65 @@ function Header() {
     location.pathname.startsWith("/workspace/");
   const storageUsage = getStorageUsage(user);
 
+  useEffect(
+    () => () => {
+      window.clearTimeout(logoutTimerRef.current);
+    },
+    []
+  );
+
   if (isWorkspaceRoute) {
     return null;
   }
 
-  function handleLogout() {
-    logout();
+  function sendRobotAction(action) {
+    window.dispatchEvent(
+      new CustomEvent(ROBOT_PET_EVENT, {
+        detail: {
+          action,
+        },
+      })
+    );
   }
+
+  function handleProfileToggle() {
+    setIsProfileOpen((current) => {
+      const next = !current;
+
+      sendRobotAction(
+        next ? "profile-open" : "profile-close"
+      );
+
+      return next;
+    });
+  }
+
+  function closeProfileMenu() {
+    setIsProfileOpen(false);
+    sendRobotAction("profile-close");
+  }
+
+  function handleLogout() {
+    if (isLogoutAnimating || isLoggingOut) {
+      return;
+    }
+
+    setIsLogoutAnimating(true);
+    setIsProfileOpen(false);
+    sendRobotAction("goodbye");
+
+    logoutTimerRef.current =
+      window.setTimeout(() => {
+        logout();
+        setIsLogoutAnimating(false);
+      }, LOGOUT_ANIMATION_MS);
+  }
+
+  const shouldShowProfileMenu =
+    isProfileOpen &&
+    isAuthenticated &&
+    !isLoggingOut &&
+    !isLogoutAnimating;
 
   return (
     <header className="site-header">
@@ -85,9 +147,7 @@ function Header() {
                     type="button"
                     aria-haspopup="menu"
                     aria-expanded={isProfileOpen}
-                    onClick={() =>
-                      setIsProfileOpen((current) => !current)
-                    }
+                    onClick={handleProfileToggle}
                   >
                     <span className="avatar-initials">
                       {getInitials(user)}
@@ -95,7 +155,7 @@ function Header() {
                     <ChevronDown size={16} />
                   </button>
 
-                  {isProfileOpen && (
+                  {shouldShowProfileMenu && (
                     <div className="profile-menu" role="menu">
                       <div className="profile-menu-header">
                         <strong>
@@ -122,7 +182,7 @@ function Header() {
                         className="profile-menu-item"
                         to="/dashboard"
                         role="menuitem"
-                        onClick={() => setIsProfileOpen(false)}
+                        onClick={closeProfileMenu}
                       >
                         <Settings size={17} />
                         Profile Settings
@@ -132,11 +192,18 @@ function Header() {
                         className="profile-menu-item logout-menu-item"
                         type="button"
                         role="menuitem"
-                        disabled={isLoggingOut}
-                        aria-busy={isLoggingOut}
+                        disabled={
+                          isLoggingOut ||
+                          isLogoutAnimating
+                        }
+                        aria-busy={
+                          isLoggingOut ||
+                          isLogoutAnimating
+                        }
                         onClick={handleLogout}
                       >
-                        {isLoggingOut ? (
+                        {isLoggingOut ||
+                        isLogoutAnimating ? (
                           <Loader2
                             className="logout-spinner"
                             size={17}
@@ -144,7 +211,8 @@ function Header() {
                         ) : (
                           <LogOut size={17} />
                         )}
-                        {isLoggingOut
+                        {isLoggingOut ||
+                        isLogoutAnimating
                           ? "Logging out..."
                           : "Logout"}
                       </button>
