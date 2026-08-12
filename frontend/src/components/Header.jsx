@@ -9,7 +9,6 @@ import {
   useLocation,
 } from "react-router";
 import {
-  ChevronDown,
   Loader2,
   LogOut,
   Settings,
@@ -152,7 +151,6 @@ function Header() {
                     <span className="avatar-initials">
                       {getInitials(user)}
                     </span>
-                    <ChevronDown size={16} />
                   </button>
 
                   {shouldShowProfileMenu && (

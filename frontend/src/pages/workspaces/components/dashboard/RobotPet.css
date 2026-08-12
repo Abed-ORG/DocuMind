@@ -18,8 +18,13 @@
 }
 
 .dashboard-robot-pet {
+  --robot-head-scale: 0.82;
   position: relative;
   z-index: 3;
+  width: 100px;
+  height: 120px;
+  flex-basis: 100px;
+  margin-top: -20px;
   animation: dashboard-robot-teleport-in 1.05s cubic-bezier(0.2, 0.9, 0.2, 1);
   transition:
     transform 520ms cubic-bezier(0.16, 1, 0.3, 1),
@@ -60,6 +65,7 @@
 .robot-pet {
   --eye-x: 0px;
   --eye-y: 0px;
+  --robot-head-scale: 1;
   position: relative;
   width: 100%;
   height: 100%;
@@ -123,6 +129,7 @@
     inset 0 9px 12px rgba(255, 255, 255, 0.82),
     0 14px 28px rgba(79, 70, 229, 0.16);
   transform-origin: 50% 86%;
+  transform: scale(var(--robot-head-scale));
   transition: transform 320ms ease;
 }
 
@@ -156,9 +163,9 @@
 
 .robot-pet-eye {
   position: absolute;
-  top: 10px;
-  width: 19px;
-  height: 19px;
+  top: 9px;
+  width: 15px;
+  height: 15px;
   overflow: hidden;
   border-radius: 50%;
   background: #ecfeff;
@@ -166,19 +173,19 @@
 }
 
 .robot-pet-eye.left {
-  left: 13px;
+  left: 11px;
 }
 
 .robot-pet-eye.right {
-  right: 13px;
+  right: 11px;
 }
 
 .robot-pet-pupil {
   position: absolute;
-  top: 5px;
-  left: 5px;
-  width: 9px;
-  height: 9px;
+  top: 4px;
+  left: 4px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: #4f46e5;
   transform: translate(var(--eye-x), var(--eye-y));
@@ -211,10 +218,10 @@
 .robot-pet-mouth {
   position: absolute;
   left: 50%;
-  bottom: 4px;
-  width: 16px;
-  height: 5px;
-  border-bottom: 3px solid #2dd4bf;
+  bottom: 3px;
+  width: 13px;
+  height: 4px;
+  border-bottom: 2px solid #2dd4bf;
   border-radius: 0 0 999px 999px;
   transform: translateX(-50%);
   transition:
@@ -365,7 +372,7 @@
 }
 
 .robot-pet.is-sleeping .robot-pet-head {
-  transform: translate(12px, 18px) rotate(18deg);
+  transform: translate(12px, 18px) rotate(18deg) scale(var(--robot-head-scale));
 }
 
 .robot-pet.is-sleeping .robot-pet-body {
@@ -393,8 +400,8 @@
 }
 
 .robot-pet.is-sleeping .robot-pet-eye {
-  height: 4px;
-  top: 19px;
+  height: 3px;
+  top: 18px;
   border-radius: 999px;
 }
 
@@ -403,9 +410,9 @@
 }
 
 .robot-pet.is-sleeping .robot-pet-mouth {
-  bottom: 4px;
-  width: 11px;
-  height: 7px;
+  bottom: 3px;
+  width: 9px;
+  height: 6px;
   border-radius: 50%;
   border-bottom-color: #67e8f9;
 }
@@ -444,14 +451,14 @@
 }
 
 .robot-pet.is-surprised .robot-pet-mouth {
-  width: 13px;
-  height: 13px;
-  border: 3px solid #2dd4bf;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #2dd4bf;
   border-radius: 50%;
 }
 
 .robot-pet.is-surprised .robot-pet-eye {
-  transform: scale(1.22);
+  transform: scale(1.12);
 }
 
 .robot-pet.is-angry {
@@ -477,10 +484,10 @@
 }
 
 .robot-pet.is-angry .robot-pet-mouth {
-  bottom: 5px;
-  width: 19px;
-  height: 7px;
-  border-top: 3px solid #f97316;
+  bottom: 4px;
+  width: 14px;
+  height: 5px;
+  border-top: 2px solid #f97316;
   border-bottom: 0;
   border-radius: 999px 999px 0 0;
 }
@@ -560,15 +567,15 @@
 @keyframes robot-head-wobble {
   0%,
   100% {
-    transform: rotate(0);
+    transform: rotate(0) scale(var(--robot-head-scale));
   }
 
   25% {
-    transform: rotate(-13deg);
+    transform: rotate(-13deg) scale(var(--robot-head-scale));
   }
 
   75% {
-    transform: rotate(13deg);
+    transform: rotate(13deg) scale(var(--robot-head-scale));
   }
 }
 
@@ -601,11 +608,11 @@
 @keyframes robot-wave-nod {
   0%,
   100% {
-    transform: rotate(0);
+    transform: rotate(0) scale(var(--robot-head-scale));
   }
 
   50% {
-    transform: rotate(-6deg) translateY(-2px);
+    transform: rotate(-6deg) translateY(-2px) scale(var(--robot-head-scale));
   }
 }
 
