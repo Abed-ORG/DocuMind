@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useRef,
   useState,
 } from "react";
 import {
@@ -8,7 +7,6 @@ import {
   Link,
   Outlet,
   useLocation,
-  useNavigate,
   useParams,
 } from "react-router";
 import {
@@ -22,7 +20,6 @@ import { WorkspaceContentSkeleton } from "../../components/Skeleton";
 import { getWorkspace as getWorkspaceRequest } from "../../services/api";
 import { WorkspaceStatusPanel } from "./components/feedback";
 import { WorkspaceSidebarProfile } from "./components/layout";
-import RobotPet from "../workspaces/components/dashboard/RobotPet";
 import {
   defaultWorkspaceColor,
   navItems,
@@ -30,12 +27,9 @@ import {
 import { getActiveSection } from "./utils/workspaceUtils";
 import "../WorkspacePages.css";
 
-const WORKSPACE_EXIT_ANIMATION_MS = 880;
-
 function WorkspacePage() {
   const { workspaceId } = useParams();
   const location = useLocation();
-  const navigate = useNavigate();
   const {
     token,
     user,
@@ -49,10 +43,6 @@ function WorkspacePage() {
   const [isProfileOpen, setIsProfileOpen] =
     useState(false);
 
-  const [isExitingWorkspace, setIsExitingWorkspace] =
-    useState(false);
-  const workspaceExitTimerRef = useRef(null);
-
   const [workspace, setWorkspace] =
     useState(null);
 
@@ -64,15 +54,6 @@ function WorkspacePage() {
 
   const [reloadKey, setReloadKey] =
     useState(0);
-
-  useEffect(
-    () => () => {
-      window.clearTimeout(
-        workspaceExitTimerRef.current
-      );
-    },
-    []
-  );
 
   useEffect(() => {
     let isMounted = true;
@@ -133,43 +114,12 @@ function WorkspacePage() {
     workspace?.color ?? defaultWorkspaceColor;
 
   function handleLogout() {
-    if (isExitingWorkspace || isLoggingOut) {
+    if (isLoggingOut) {
       return;
     }
 
-    setIsExitingWorkspace(true);
     setIsProfileOpen(false);
-
-    workspaceExitTimerRef.current =
-      window.setTimeout(() => {
-        logout();
-      }, WORKSPACE_EXIT_ANIMATION_MS);
-  }
-
-  function exitWorkspace(event, destination) {
-    if (
-      event.metaKey ||
-      event.ctrlKey ||
-      event.shiftKey ||
-      event.altKey
-    ) {
-      return;
-    }
-
-    event.preventDefault();
-
-    if (isExitingWorkspace) {
-      return;
-    }
-
-    setIsExitingWorkspace(true);
-    setIsProfileOpen(false);
-    setIsSidebarOpen(false);
-
-    workspaceExitTimerRef.current =
-      window.setTimeout(() => {
-        navigate(destination);
-      }, WORKSPACE_EXIT_ANIMATION_MS);
+    logout();
   }
 
   return (
@@ -199,9 +149,7 @@ function WorkspacePage() {
         <Link
           className="workspace-sidebar-brand"
           to="/"
-          onClick={(event) =>
-            exitWorkspace(event, "/")
-          }
+          onClick={() => setIsSidebarOpen(false)}
         >
           <DocuMindLogo className="workspace-sidebar-logo" />
         </Link>
@@ -214,9 +162,7 @@ function WorkspacePage() {
           <Link
             to="/dashboard"
             aria-label="Return to dashboard"
-            onClick={(event) =>
-              exitWorkspace(event, "/dashboard")
-            }
+            onClick={() => setIsSidebarOpen(false)}
           >
             <span className="workspace-title-default">
               {workspaceName}
@@ -249,22 +195,6 @@ function WorkspacePage() {
         </nav>
 
         <div className="workspace-sidebar-bottom">
-          <div
-            className={
-              [
-                "workspace-sidebar-robot-stage",
-                isProfileOpen ? "is-profile-open" : "",
-                isExitingWorkspace ? "is-exiting" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")
-            }
-          >
-            <RobotPet
-              className="workspace-sidebar-robot"
-            />
-          </div>
-
           <WorkspaceSidebarProfile
             user={user}
             isOpen={isProfileOpen}
@@ -275,13 +205,12 @@ function WorkspacePage() {
               setIsProfileOpen(false);
               setIsSidebarOpen(false);
             }}
-            onProfileSettings={(event) =>
-              exitWorkspace(event, "/dashboard")
-            }
+            onProfileSettings={() => {
+              setIsProfileOpen(false);
+              setIsSidebarOpen(false);
+            }}
             onLogout={handleLogout}
-            isLoggingOut={
-              isLoggingOut || isExitingWorkspace
-            }
+            isLoggingOut={isLoggingOut}
           />
         </div>
       </aside>

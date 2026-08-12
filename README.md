@@ -75,16 +75,14 @@ flowchart TD
 
 ## Screenshots
 
-Real screenshots should be captured after all feature branches are merged and the app is running locally. Use these placeholder targets when adding images:
-
-| Screen | Planned file |
+| Screen | Preview |
 | --- | --- |
-| Landing page | `docs/screenshots/home.png` |
-| Workspace dashboard | `docs/screenshots/dashboard.png` |
-| Workspace documents tab | `docs/screenshots/workspace-documents.png` |
-| Chat with citations | `docs/screenshots/chat-citations.png` |
-| Analytics dashboard | `docs/screenshots/analytics.png` |
-| Extraction and comparison tools | `docs/screenshots/extraction-comparison.png` |
+| Landing page | ![DocuMind landing page](docs/screenshots/home.png) |
+| Workspace dashboard | ![Workspace dashboard](docs/screenshots/dashboard.png) |
+| Workspace documents tab | ![Workspace documents tab](docs/screenshots/workspace-documents.png) |
+| Chat with citations | ![Chat with citations](docs/screenshots/chat-citations.png) |
+| Analytics dashboard | ![Analytics dashboard](docs/screenshots/analytics.png) |
+| Extraction and comparison tools | ![Extraction and comparison tools](docs/screenshots/extraction-comparison.png) |
 
 ## Project Structure
 
@@ -387,4 +385,4 @@ Manual smoke test:
 
 ## Planned Screenshot Checklist
 
-Before publishing the README externally, capture screenshots at the placeholder paths listed above and verify they render in GitHub preview.
+Before publishing the README externally, verify the screenshots above render correctly in GitHub preview.

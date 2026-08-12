@@ -7,7 +7,7 @@ import {
 
 import "./RobotPet.css";
 
-const MAX_EYE_OFFSET = 7;
+const MAX_EYE_OFFSET = 4;
 const IDLE_SLEEP_DELAY = 10000;
 const AUTO_WAVE_DELAY = 5000;
 const WAVE_TRICK = "is-waving";

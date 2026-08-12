@@ -119,16 +119,23 @@
 }
 
 .avatar-button {
-  min-height: 42px;
-  padding: 0 9px 0 4px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-button);
-  color: var(--color-muted);
-  background: #ffffff;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  color: inherit;
+  background: transparent;
   font-weight: 700;
+  cursor: pointer;
+}
+
+.avatar-button:focus-visible {
+  outline: 3px solid rgba(79, 70, 229, 0.28);
+  outline-offset: 3px;
 }
 
 .avatar-initials {
