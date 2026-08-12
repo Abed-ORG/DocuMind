@@ -22,7 +22,7 @@ function RegisterForm({
           autoComplete="given-name"
           value={formData.firstName}
           error={fieldErrors.firstName}
-          placeholder="Hussein"
+          placeholder="Alex"
           onChange={onChange}
         />
 
@@ -34,7 +34,7 @@ function RegisterForm({
           autoComplete="family-name"
           value={formData.lastName}
           error={fieldErrors.lastName}
-          placeholder="Marji"
+          placeholder="Morgan"
           onChange={onChange}
         />
       </div>
