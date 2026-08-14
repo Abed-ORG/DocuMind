@@ -51,6 +51,7 @@ export function mapApiDocument(document) {
     size: formatFileSize(document.fileSize),
     contentHash: document.contentHash,
     uploadedAt: formatUploadedAt(document.createdAt),
+    uploadedAtDate: document.createdAt,
     status: document.status ?? "uploaded",
     processingStage:
       document.processingStage ?? "queued",
