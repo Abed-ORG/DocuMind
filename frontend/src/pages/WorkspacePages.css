@@ -1429,6 +1429,29 @@
   gap: 10px;
 }
 
+.filter-action {
+  position: relative;
+}
+
+.filter-action.active {
+  color: var(--color-primary);
+  border-color: rgba(79, 70, 229, 0.3);
+  background: #eef2ff;
+}
+
+.filter-action span {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #ffffff;
+  background: var(--color-primary);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
 .search-field {
   min-height: 42px;
   display: flex;
@@ -1502,6 +1525,60 @@
 .document-table tr:last-child td,
 .extraction-table tr:last-child td {
   border-bottom: 0;
+}
+
+.document-pagination {
+  margin-top: 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  color: var(--color-subtle);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow-sm);
+}
+
+.document-pagination > span {
+  font-size: 0.84rem;
+  font-weight: 740;
+}
+
+.document-pagination > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.document-pagination button {
+  width: 34px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  color: var(--color-muted);
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.document-pagination button:not(:disabled):hover {
+  color: var(--color-primary);
+  border-color: rgba(79, 70, 229, 0.28);
+  background: #eef2ff;
+}
+
+.document-pagination button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.document-pagination strong {
+  color: var(--color-muted);
+  font-size: 0.84rem;
+  font-weight: 800;
 }
 
 .document-name-cell,
@@ -1624,6 +1701,90 @@
 .document-actions-menu .danger-action:hover {
   color: #991b1b;
   background: #fef2f2;
+}
+
+.filter-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  padding: 18px;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.46);
+  backdrop-filter: blur(3px);
+}
+
+.document-filter-dialog {
+  width: min(100%, 520px);
+  padding: 20px;
+  display: grid;
+  gap: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: #ffffff;
+  box-shadow: var(--shadow-md);
+}
+
+.document-filter-dialog header,
+.document-filter-dialog footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.document-filter-dialog h2 {
+  margin: 3px 0 0;
+  color: var(--color-text);
+  font-size: 1.2rem;
+}
+
+.document-filter-dialog header button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  color: var(--color-muted);
+  background: #ffffff;
+  font-weight: 780;
+  cursor: pointer;
+}
+
+.document-filter-dialog header button:hover {
+  color: var(--color-primary);
+  background: #eef2ff;
+}
+
+.document-filter-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.document-filter-grid label {
+  display: grid;
+  gap: 7px;
+}
+
+.document-filter-grid span {
+  color: var(--color-muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.document-filter-grid select {
+  min-height: 42px;
+  width: 100%;
+  padding: 0 11px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  color: var(--color-text);
+  background: #ffffff;
+  outline: 0;
+}
+
+.document-filter-grid select:focus {
+  border-color: rgba(79, 70, 229, 0.5);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
 
 .summary-panel,
