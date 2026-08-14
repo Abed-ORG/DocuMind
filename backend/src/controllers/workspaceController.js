@@ -1,9 +1,11 @@
 import Chunk from "../models/Chunk.js";
 import Conversation from "../models/Conversation.js";
 import Document from "../models/Document.js";
+import AIUsage from "../models/AIUsage.js";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
 import Workspace from "../models/Workspace.js";
+import { env } from "../config/env.js";
 import { cascadeDeleteWorkspaceData } from "../services/workspaceCascadeService.js";
 
 function getLatestDate(values) {
@@ -849,6 +851,72 @@ export async function getWorkspaceAnalytics(
         },
       ]);
 
+    const [aiUsageAnalytics = {}] =
+      await AIUsage.aggregate([
+        {
+          $match: {
+            workspaceId: workspace._id,
+            createdAt: {
+              $gte: startDate,
+            },
+          },
+        },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  inputTokenCount: {
+                    $sum: "$inputTokenCount",
+                  },
+                  outputTokenCount: {
+                    $sum: "$outputTokenCount",
+                  },
+                  totalTokenCount: {
+                    $sum: "$totalTokenCount",
+                  },
+                  cachedTokenCount: {
+                    $sum: "$cachedTokenCount",
+                  },
+                  thoughtsTokenCount: {
+                    $sum: "$thoughtsTokenCount",
+                  },
+                  estimatedCostUsd: {
+                    $sum: "$estimatedCostUsd",
+                  },
+                  requestCount: {
+                    $sum: 1,
+                  },
+                },
+              },
+            ],
+            featureBreakdown: [
+              {
+                $group: {
+                  _id: "$feature",
+                  totalTokenCount: {
+                    $sum: "$totalTokenCount",
+                  },
+                  estimatedCostUsd: {
+                    $sum: "$estimatedCostUsd",
+                  },
+                  requestCount: {
+                    $sum: 1,
+                  },
+                },
+              },
+              {
+                $sort: {
+                  totalTokenCount: -1,
+                  _id: 1,
+                },
+              },
+            ],
+          },
+        },
+      ]);
+
     const totalDocuments =
       documentAnalytics.totals?.[0]?.documentCount ?? 0;
     const totalQueries =
@@ -866,6 +934,8 @@ export async function getWorkspaceAnalytics(
       messages: messageAnalytics.questionMessages,
       documents: workspaceDocuments,
     });
+    const tokenUsage =
+      aiUsageAnalytics.totals?.[0] ?? {};
 
     return res.status(200).json({
       success: true,
@@ -892,6 +962,28 @@ export async function getWorkspaceAnalytics(
           chunkedDocumentCount:
             chunkAnalytics.chunkedDocuments?.[0]
               ?.count ?? 0,
+          tokenUsage: {
+            inputTokenCount:
+              tokenUsage.inputTokenCount ?? 0,
+            outputTokenCount:
+              tokenUsage.outputTokenCount ?? 0,
+            totalTokenCount:
+              tokenUsage.totalTokenCount ?? 0,
+            cachedTokenCount:
+              tokenUsage.cachedTokenCount ?? 0,
+            thoughtsTokenCount:
+              tokenUsage.thoughtsTokenCount ?? 0,
+            estimatedCostUsd:
+              tokenUsage.estimatedCostUsd ?? 0,
+            requestCount:
+              tokenUsage.requestCount ?? 0,
+            rates: {
+              inputCostPerMillionTokens:
+                env.aiInputCostPerMillionTokens,
+              outputCostPerMillionTokens:
+                env.aiOutputCostPerMillionTokens,
+            },
+          },
         },
         queriesOverTime: buildDateBuckets({
           days,
@@ -908,6 +1000,8 @@ export async function getWorkspaceAnalytics(
             (item) =>
               formatDocumentType(item, totalDocuments)
           ) ?? [],
+        tokenUsageByFeature:
+          aiUsageAnalytics.featureBreakdown ?? [],
       },
     });
   } catch (error) {

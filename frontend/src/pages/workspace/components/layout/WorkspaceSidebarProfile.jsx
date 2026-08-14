@@ -1,9 +1,7 @@
-import { Link } from "react-router";
 import {
   ChevronDown,
   Loader2,
   LogOut,
-  Settings,
 } from "lucide-react";
 
 import { getInitials } from "../../utils/workspaceUtils";
@@ -13,8 +11,6 @@ function WorkspaceSidebarProfile({
   user,
   isOpen,
   onToggle,
-  onClose,
-  onProfileSettings,
   onLogout,
   isLoggingOut,
 }) {
@@ -63,16 +59,6 @@ function WorkspaceSidebarProfile({
               />
             </div>
           </div>
-
-          <Link
-            className="profile-menu-item"
-            to="/dashboard"
-            role="menuitem"
-            onClick={onProfileSettings ?? onClose}
-          >
-            <Settings size={17} />
-            Profile Settings
-          </Link>
 
           <button
             className="profile-menu-item logout-menu-item"

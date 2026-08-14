@@ -201,14 +201,6 @@ function WorkspacePage() {
             onToggle={() =>
               setIsProfileOpen((current) => !current)
             }
-            onClose={() => {
-              setIsProfileOpen(false);
-              setIsSidebarOpen(false);
-            }}
-            onProfileSettings={() => {
-              setIsProfileOpen(false);
-              setIsSidebarOpen(false);
-            }}
             onLogout={handleLogout}
             isLoggingOut={isLoggingOut}
           />

@@ -15,6 +15,12 @@ const geminiEmbeddingTimeoutMs = Number(
 const geminiGenerativeTimeoutMs = Number(
   process.env.GEMINI_GENERATIVE_TIMEOUT_MS ?? 30000
 );
+const aiInputCostPerMillionTokens = Number(
+  process.env.AI_INPUT_COST_PER_MILLION_TOKENS ?? 0.75
+);
+const aiOutputCostPerMillionTokens = Number(
+  process.env.AI_OUTPUT_COST_PER_MILLION_TOKENS ?? 3.75
+);
 const r2ConfigValues = [
   process.env.R2_ACCOUNT_ID,
   process.env.R2_ACCESS_KEY_ID,
@@ -69,6 +75,24 @@ if (
   );
 }
 
+if (
+  !Number.isFinite(aiInputCostPerMillionTokens) ||
+  aiInputCostPerMillionTokens < 0
+) {
+  throw new Error(
+    "AI_INPUT_COST_PER_MILLION_TOKENS must be a non-negative number."
+  );
+}
+
+if (
+  !Number.isFinite(aiOutputCostPerMillionTokens) ||
+  aiOutputCostPerMillionTokens < 0
+) {
+  throw new Error(
+    "AI_OUTPUT_COST_PER_MILLION_TOKENS must be a non-negative number."
+  );
+}
+
 if (!process.env.MONGODB_URI) {
   throw new Error("MONGODB_URI is missing from the .env file.");
 }
@@ -110,6 +134,8 @@ export const env = {
     process.env.GEMINI_GENERATIVE_MODEL ??
     "gemini-flash-latest",
   geminiGenerativeTimeoutMs,
+  aiInputCostPerMillionTokens,
+  aiOutputCostPerMillionTokens,
   vectorSearchIndexName:
     process.env.VECTOR_SEARCH_INDEX_NAME ??
     "chunk_embedding_vector_index",

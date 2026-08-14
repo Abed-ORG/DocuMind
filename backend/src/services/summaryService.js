@@ -5,6 +5,9 @@ import Chunk from "../models/Chunk.js";
 import Summary, {
   SUMMARY_LEVELS,
 } from "../models/Summary.js";
+import {
+  buildAiUsageFromResponse,
+} from "./aiUsageService.js";
 
 const summaryLevelAliases = new Map([
   ["one-liner", "one-liner"],
@@ -448,6 +451,10 @@ async function generateSummaryContent({
         return {
           content,
           model: selectedModel,
+          usage: buildAiUsageFromResponse({
+            response,
+            model: selectedModel,
+          }),
         };
       }
 
@@ -464,6 +471,10 @@ async function generateSummaryContent({
     return {
       content,
       model: selectedModel,
+      usage: buildAiUsageFromResponse({
+        response,
+        model: selectedModel,
+      }),
     };
   }
 
@@ -505,6 +516,7 @@ export async function summarizeDocument({
         cached: true,
         summary: formatSummary(cachedSummary),
         model: null,
+        usage: null,
       };
     }
   }
@@ -528,6 +540,7 @@ export async function summarizeDocument({
   const {
     content,
     model: selectedModel,
+    usage,
   } = await generateSummaryContent({
     document,
     chunks,
@@ -563,5 +576,6 @@ export async function summarizeDocument({
     cached: false,
     summary: formatSummary(summary),
     model: selectedModel,
+    usage,
   };
 }

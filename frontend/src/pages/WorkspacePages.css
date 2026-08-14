@@ -1246,6 +1246,7 @@
   .document-action-modal,
   .conversation-delete-modal,
   .message-bubble.is-entering,
+  .message-bubble.is-typewriting .message-content::after,
   .preview-panel,
   .upload-document-modal,
   .upload-modal-backdrop.is-closing .upload-document-modal {
@@ -2016,6 +2017,38 @@
   line-height: 1.35;
 }
 
+.extraction-result-groups {
+  margin-top: 16px;
+  display: grid;
+  gap: 18px;
+}
+
+.extraction-result-group {
+  display: grid;
+  gap: 8px;
+}
+
+.extraction-result-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.extraction-result-group-header h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 0.98rem;
+  line-height: 1.35;
+}
+
+.extraction-result-group-header span {
+  color: var(--color-subtle);
+  font-size: 0.76rem;
+  font-weight: 780;
+  text-transform: uppercase;
+}
+
 .preview-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -2372,9 +2405,12 @@
   max-height: min(560px, calc(100vh - 260px));
   width: 100%;
   overflow: auto;
-  border: 1px solid var(--color-border);
+  border: 1px solid #86efac;
   border-radius: var(--radius-card);
-  background: #ffffff;
+  background:
+    linear-gradient(90deg, rgba(34, 197, 94, 0.08), transparent 22%),
+    #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .csv-preview-table {
@@ -2388,8 +2424,8 @@
 .csv-preview-table th,
 .csv-preview-table td {
   padding: 10px 12px;
-  border-right: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
+  border-right: 1px solid #dbeafe;
+  border-bottom: 1px solid #d1fae5;
   color: var(--color-muted);
   overflow: visible;
   white-space: nowrap;
@@ -2397,11 +2433,32 @@
 
 .csv-preview-table th {
   position: sticky;
-  top: 0;
+  top: 31px;
   z-index: 1;
   color: var(--color-text);
-  background: #f8fafc;
+  background: #ecfdf5;
   font-weight: 850;
+}
+
+.csv-preview-table .csv-column-letters th {
+  top: 0;
+  min-height: 31px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  color: #065f46;
+  background: #bbf7d0;
+  border-color: #86efac;
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-align: center;
+}
+
+.csv-preview-table tbody tr:nth-child(even) td:not(.csv-row-number) {
+  background: #f8fafc;
+}
+
+.csv-preview-table tbody tr:hover td:not(.csv-row-number) {
+  background: #eff6ff;
 }
 
 .csv-preview-table tr:last-child td {
@@ -2422,18 +2479,26 @@
   max-width: 38px;
   padding-right: 8px;
   padding-left: 8px;
-  color: var(--color-subtle);
-  background: #f8fafc;
+  color: #475569;
+  background: #e0f2fe;
   text-align: right;
 }
 
 .csv-preview-table thead .csv-row-number {
-  z-index: 3;
+  z-index: 4;
+  color: #065f46;
+  background: #bbf7d0;
 }
 
 .csv-preview-table tbody .csv-row-number {
   z-index: 1;
   font-weight: 760;
+}
+
+.csv-preview-table tbody tr:first-child td:nth-child(2) {
+  position: relative;
+  box-shadow: inset 0 0 0 2px #22c55e;
+  background: #f0fdf4;
 }
 
 .csv-preview-table tr.is-citation-highlight .csv-row-number {
@@ -2816,6 +2881,18 @@
   animation: messageSendIn 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+.message-bubble.is-typewriting .message-content::after {
+  content: "";
+  width: 7px;
+  height: 1.1em;
+  margin-left: 2px;
+  display: inline-block;
+  border-radius: 999px;
+  background: var(--color-primary);
+  vertical-align: -0.18em;
+  animation: typewriterCaret 760ms ease-in-out infinite;
+}
+
 .message-timestamp {
   display: block;
   margin-top: 5px;
@@ -3085,7 +3162,10 @@
 .analytics-summary-grid {
   margin-bottom: 16px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(180px, 1fr)
+  );
   gap: 12px;
 }
 
@@ -3101,7 +3181,7 @@
   box-shadow: var(--shadow-sm);
 }
 
-.analytics-metric svg {
+.analytics-metric > svg {
   width: 38px;
   height: 38px;
   padding: 9px;
@@ -3124,6 +3204,9 @@
 }
 
 .analytics-metric span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--color-subtle);
   font-size: 0.86rem;
   font-weight: 760;
@@ -3518,6 +3601,17 @@
 
   50% {
     transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+@keyframes typewriterCaret {
+  0%,
+  100% {
+    opacity: 0.18;
+  }
+
+  45% {
     opacity: 1;
   }
 }

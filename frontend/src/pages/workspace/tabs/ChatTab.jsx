@@ -42,6 +42,9 @@ import {
 } from "../utils/citationUtils";
 import { mapApiDocument } from "../utils/workspaceUtils";
 
+const assistantTypewriterDelayMs = 18;
+const assistantTypewriterMaxTicks = 260;
+
 function formatConversationTimestamp(value) {
   if (!value) {
     return "No messages";
@@ -121,6 +124,15 @@ function mapMessage(message) {
     citations: message.citations ?? [],
     createdAt: message.createdAt,
   };
+}
+
+function getTypewriterStepSize(text) {
+  return Math.max(
+    1,
+    Math.ceil(
+      String(text ?? "").length / assistantTypewriterMaxTicks
+    )
+  );
 }
 
 function createRetryMessage({
@@ -474,17 +486,25 @@ function ChatTab() {
     useState(false);
   const [animatedMessageId, setAnimatedMessageId] =
     useState(null);
+  const [typewriterMessageId, setTypewriterMessageId] =
+    useState(null);
 
   const messageEndRef = useRef(null);
   const messageInputRef = useRef(null);
   const isAwaitingResponseRef = useRef(false);
   const animationTimeoutRef = useRef(null);
+  const typewriterTimeoutRef = useRef(null);
   const shouldSkipRenameSaveRef = useRef(false);
   const isSavingConversationTitleRef =
     useRef(false);
 
-  const activeMessages =
-    messagesByConversation[activeConversationId] ?? [];
+  const activeMessages = useMemo(
+    () => messagesByConversation[activeConversationId] ?? [],
+    [
+      activeConversationId,
+      messagesByConversation,
+    ]
+  );
   const mentionQuery = getMentionQuery(messageInput);
   const isMentionPickerOpen =
     mentionQuery !== null && !isTyping;
@@ -825,7 +845,7 @@ function ChatTab() {
       block: "end",
     });
   }, [
-    activeMessages.length,
+    activeMessages,
     isTyping,
     activeConversationId,
   ]);
@@ -835,6 +855,12 @@ function ChatTab() {
       if (animationTimeoutRef.current) {
         window.clearTimeout(
           animationTimeoutRef.current
+        );
+      }
+
+      if (typewriterTimeoutRef.current) {
+        window.clearTimeout(
+          typewriterTimeoutRef.current
         );
       }
     },
@@ -1096,6 +1122,95 @@ function ChatTab() {
     }
   }
 
+  function waitForTypewriterTick() {
+    return new Promise((resolve) => {
+      typewriterTimeoutRef.current =
+        window.setTimeout(() => {
+          typewriterTimeoutRef.current = null;
+          resolve();
+        }, assistantTypewriterDelayMs);
+    });
+  }
+
+  async function revealAssistantMessage({
+    conversationId,
+    retryMessageId,
+    assistantMessage,
+  }) {
+    const fullContent = assistantMessage.content ?? "";
+    const stepSize = getTypewriterStepSize(fullContent);
+    const draftMessage = {
+      ...assistantMessage,
+      content: "",
+      citations: [],
+      isTypewriting: true,
+    };
+
+    setTypewriterMessageId(assistantMessage.id);
+    setMessagesByConversation((current) => {
+      const conversationMessages =
+        current[conversationId] ?? [];
+      const nextMessages = retryMessageId
+        ? conversationMessages.map((message) =>
+            message.id === retryMessageId
+              ? draftMessage
+              : message
+          )
+        : [
+            ...conversationMessages,
+            draftMessage,
+          ];
+
+      return {
+        ...current,
+        [conversationId]: nextMessages,
+      };
+    });
+
+    for (
+      let index = stepSize;
+      index < fullContent.length;
+      index += stepSize
+    ) {
+      await waitForTypewriterTick();
+
+      const partialContent = fullContent.slice(0, index);
+
+      setMessagesByConversation((current) => {
+        const conversationMessages =
+          current[conversationId] ?? [];
+
+        return {
+          ...current,
+          [conversationId]: conversationMessages.map(
+            (message) =>
+              message.id === assistantMessage.id
+                ? {
+                    ...message,
+                    content: partialContent,
+                  }
+                : message
+          ),
+        };
+      });
+    }
+
+    setMessagesByConversation((current) => {
+      const conversationMessages =
+        current[conversationId] ?? [];
+
+      return {
+        ...current,
+        [conversationId]: conversationMessages.map((message) =>
+          message.id === assistantMessage.id
+            ? assistantMessage
+            : message
+        ),
+      };
+    });
+    setTypewriterMessageId(null);
+  }
+
   async function requestAssistantAnswer({
     conversationId,
     question,
@@ -1134,24 +1249,10 @@ function ChatTab() {
       updateConversationFromResponse(
         assistantResponse.conversation
       );
-      setMessagesByConversation((current) => {
-        const conversationMessages =
-          current[conversationId] ?? [];
-        const nextMessages = retryMessageId
-          ? conversationMessages.map((message) =>
-              message.id === retryMessageId
-                ? assistantMessage
-                : message
-            )
-          : [
-              ...conversationMessages,
-              assistantMessage,
-            ];
-
-        return {
-          ...current,
-          [conversationId]: nextMessages,
-        };
+      await revealAssistantMessage({
+        conversationId,
+        retryMessageId,
+        assistantMessage,
       });
       setSelectedMentionDocuments([]);
     } catch (error) {
@@ -1485,6 +1586,10 @@ function ChatTab() {
                   message.id === animatedMessageId
                     ? " is-entering"
                     : ""
+                }${
+                  message.id === typewriterMessageId
+                    ? " is-typewriting"
+                    : ""
                 }`}
               >
                 {message.role === "user" ? (
@@ -1562,7 +1667,7 @@ function ChatTab() {
             </div>
           )}
 
-          {isTyping && (
+          {isTyping && !typewriterMessageId && (
             <div
               className="typing-indicator"
               aria-label="AI is typing"

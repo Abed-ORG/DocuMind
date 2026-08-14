@@ -20,6 +20,9 @@ import {
   summarizeDocument as summarizeDocumentWithCache,
 } from "../services/summaryService.js";
 import {
+  recordWorkspaceAiUsage,
+} from "../services/aiUsageService.js";
+import {
   createDocumentStorageKey,
   createTempDocumentPath,
   deleteDocumentFromR2,
@@ -1657,6 +1660,12 @@ export async function summarizeDocument(
         level: req.body.level,
         force: req.body.force,
       });
+
+    await recordWorkspaceAiUsage({
+      workspaceId: document.workspaceId,
+      feature: "summary",
+      usage: result.usage,
+    });
 
     return res.status(200).json({
       success: true,
