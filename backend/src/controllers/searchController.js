@@ -5,6 +5,9 @@ import {
   compareWorkspaceDocuments,
   extractWorkspaceFields,
 } from "../services/ragAnswerService.js";
+import {
+  recordWorkspaceAiUsage,
+} from "../services/aiUsageService.js";
 import { searchWorkspaceChunks } from "../services/vectorSearchService.js";
 
 async function findUserWorkspace(req) {
@@ -141,6 +144,12 @@ export async function answerWorkspace(
         req.body.conversationHistory,
     });
 
+    await recordWorkspaceAiUsage({
+      workspaceId: workspace._id,
+      feature: "chat",
+      usage: result.usage,
+    });
+
     return res.status(200).json({
       success: true,
       query: req.body.query.trim(),
@@ -217,6 +226,12 @@ export async function compareWorkspace(
         limit,
       });
 
+    await recordWorkspaceAiUsage({
+      workspaceId: workspace._id,
+      feature: "comparison",
+      usage: result.usage,
+    });
+
     return res.status(200).json({
       success: true,
       topic: topic.trim(),
@@ -255,6 +270,12 @@ export async function extractWorkspace(
       prompt: req.body.prompt,
       limit: req.body.limit,
       documentIds,
+    });
+
+    await recordWorkspaceAiUsage({
+      workspaceId: workspace._id,
+      feature: "extraction",
+      usage: result.usage,
     });
 
     return res.status(200).json({

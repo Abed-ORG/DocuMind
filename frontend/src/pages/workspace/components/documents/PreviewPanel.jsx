@@ -473,6 +473,20 @@ function CsvPreviewTable({
         : []
     )
   );
+  function getSpreadsheetColumnLabel(index) {
+    let value = index + 1;
+    let label = "";
+
+    while (value > 0) {
+      const remainder = (value - 1) % 26;
+
+      label =
+        String.fromCharCode(65 + remainder) + label;
+      value = Math.floor((value - 1) / 26);
+    }
+
+    return label;
+  }
 
   return (
     <div className="csv-preview">
@@ -491,6 +505,14 @@ function CsvPreviewTable({
       <div className="csv-table-scroll">
         <table className="csv-preview-table">
           <thead>
+            <tr className="csv-column-letters">
+              <th className="csv-row-number csv-corner-cell" />
+              {columns.map((column, index) => (
+                <th key={`column-letter-${column}-${index}`}>
+                  {getSpreadsheetColumnLabel(index)}
+                </th>
+              ))}
+            </tr>
             <tr>
               <th className="csv-row-number">#</th>
               {columns.map((column, index) => (

@@ -11,7 +11,6 @@ import {
 import {
   Loader2,
   LogOut,
-  Settings,
 } from "lucide-react";
 
 import DocuMindLogo from "./DocuMindLogo";
@@ -80,11 +79,6 @@ function Header() {
 
       return next;
     });
-  }
-
-  function closeProfileMenu() {
-    setIsProfileOpen(false);
-    sendRobotAction("profile-close");
   }
 
   function handleLogout() {
@@ -175,16 +169,6 @@ function Header() {
                           />
                         </div>
                       </div>
-
-                      <Link
-                        className="profile-menu-item"
-                        to="/dashboard"
-                        role="menuitem"
-                        onClick={closeProfileMenu}
-                      >
-                        <Settings size={17} />
-                        Profile Settings
-                      </Link>
 
                       <button
                         className="profile-menu-item logout-menu-item"

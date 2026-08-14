@@ -293,7 +293,7 @@ function CrossDocumentComparison({
                 sources: [],
               }))
             }
-            placeholder="Example: compliance obligations"
+            placeholder="Describe what to compare"
           />
         </div>
 

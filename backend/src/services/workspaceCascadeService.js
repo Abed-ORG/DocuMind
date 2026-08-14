@@ -7,6 +7,7 @@ const collectionNames = {
   conversations: "conversations",
   messages: "messages",
   summaries: "summaries",
+  aiUsages: "aiusages",
 };
 
 function withStringForms(ids) {
@@ -144,6 +145,10 @@ export async function cascadeDeleteWorkspaceData({
     summaries: await deleteFromCollection(
       collectionNames.summaries,
       orFilter(summaryFilters)
+    ),
+    aiUsages: await deleteFromCollection(
+      collectionNames.aiUsages,
+      workspaceFilter
     ),
     chunks: await deleteFromCollection(
       collectionNames.chunks,

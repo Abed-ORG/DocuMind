@@ -37,6 +37,7 @@ import {
   getCitationEvidenceText,
   getDocumentFormatFromName,
 } from "../utils/citationUtils";
+import { buildExtractionExport } from "../utils/extractionExportUtils";
 import {
   createUploadId,
   documentContentDuplicateExists,
@@ -48,8 +49,7 @@ import {
 } from "../utils/workspaceUtils";
 
 const uploadNotificationDurationMs = 5000;
-const defaultComparisonTopic =
-  "citation quality and buyer risk";
+const defaultComparisonTopic = "";
 
 function DocumentsTab() {
   const { workspaceId } = useParams();
@@ -157,7 +157,7 @@ function DocumentsTab() {
   });
 
   const [extractionPrompt, setExtractionPrompt] =
-    useState("all dates and dollar amounts");
+    useState("");
 
   const [extractionState, setExtractionState] =
     useState({
@@ -168,6 +168,9 @@ function DocumentsTab() {
         "source",
       ],
       rows: [],
+      fields: [],
+      recordSets: [],
+      groups: [],
       documentIds: [],
       documentName: "",
       documentNames: [],
@@ -176,11 +179,6 @@ function DocumentsTab() {
       requestKey: 0,
       error: "",
     });
-
-  const [sortConfig, setSortConfig] = useState({
-    key: "field",
-    direction: "asc",
-  });
 
   const summaryRef = useRef(null);
   const extractionRef = useRef(null);
@@ -226,30 +224,8 @@ function DocumentsTab() {
   }, [activeCitation, documents]);
 
   const sortedExtractionRows = useMemo(() => {
-    const rows = [...extractionState.rows];
-
-    rows.sort((first, second) => {
-      const firstValue = String(
-        first[sortConfig.key] ?? ""
-      ).toLowerCase();
-      const secondValue = String(
-        second[sortConfig.key] ?? ""
-      ).toLowerCase();
-
-      if (firstValue < secondValue) {
-        return sortConfig.direction === "asc" ? -1 : 1;
-      }
-
-      if (firstValue > secondValue) {
-        return sortConfig.direction === "asc" ? 1 : -1;
-      }
-
-      return 0;
-    });
-
-    
-    return rows;
-  }, [extractionState.rows, sortConfig]);
+    return [...extractionState.rows];
+  }, [extractionState.rows]);
 
   const uploadError = useMemo(
     () =>
@@ -1422,9 +1398,7 @@ function DocumentsTab() {
   }
 
   function openExtraction(document) {
-    setExtractionPrompt(
-      `dates, dollar amounts, and obligations in ${document.name}`
-    );
+    setExtractionPrompt("");
     setExtractionState((current) => ({
       ...current,
       documentIds: [document.id],
@@ -1433,6 +1407,9 @@ function DocumentsTab() {
       hasRun: false,
       isLoading: false,
       error: "",
+      fields: [],
+      recordSets: [],
+      groups: [],
       rows: [],
     }));
     extractionRef.current?.scrollIntoView({
@@ -1449,6 +1426,9 @@ function DocumentsTab() {
       documentNames: [],
       hasRun: false,
       error: "",
+      fields: [],
+      recordSets: [],
+      groups: [],
       rows: [],
     }));
   }
@@ -1475,6 +1455,9 @@ function DocumentsTab() {
       ),
       hasRun: false,
       error: "",
+      fields: [],
+      recordSets: [],
+      groups: [],
       rows: [],
     }));
   }
@@ -1507,6 +1490,9 @@ function DocumentsTab() {
       hasRun: true,
       requestKey: nextRequestKey,
       error: "",
+      fields: [],
+      recordSets: [],
+      groups: [],
       rows: [],
     }));
 
@@ -1532,6 +1518,9 @@ function DocumentsTab() {
             response.columns?.length > 0
               ? response.columns
               : current.columns,
+          fields: response.fields ?? [],
+          recordSets: response.recordSets ?? [],
+          groups: response.groups ?? [],
           rows: response.rows ?? [],
           isLoading: false,
           error: "",
@@ -1546,6 +1535,9 @@ function DocumentsTab() {
         return {
           ...current,
           rows: [],
+          fields: [],
+          recordSets: [],
+          groups: [],
           isLoading: false,
           error:
             error.message ||
@@ -1555,41 +1547,65 @@ function DocumentsTab() {
     }
   }
 
-  function handleSort(key) {
-    setSortConfig((current) => ({
-      key,
-      direction:
-        current.key === key && current.direction === "asc"
-          ? "desc"
-          : "asc",
-    }));
+  function getExtractionGroups() {
+    if (extractionState.groups?.length > 0) {
+      return extractionState.groups;
+    }
+
+    if (sortedExtractionRows.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        id: "legacy-fields",
+        kind: "fields",
+        title: "Single-Value Fields",
+        columns: [
+          {
+            key: "field",
+            label: "Field",
+          },
+          {
+            key: "value",
+            label: "Value",
+          },
+          {
+            key: "type",
+            label: "Type",
+          },
+          {
+            key: "source",
+            label: "Source",
+          },
+        ],
+        rows: sortedExtractionRows.map((row) => ({
+          values: {
+            field: row.field,
+            value: row.value,
+            type: row.type,
+            source: row.source,
+          },
+        })),
+      },
+    ];
   }
 
   function exportCsv() {
-    const header = ["Field", "Value", "Type", "Source"];
-    const rows = sortedExtractionRows.map((row) => [
-      row.field,
-      row.value,
-      row.type,
-      row.source,
-    ]);
-
-    const csv = [header, ...rows]
-      .map((row) =>
-        row
-          .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
-          .join(",")
-      )
-      .join("\n");
-
-    const blob = new Blob([csv], {
-      type: "text/csv;charset=utf-8",
+    const exportArtifact = buildExtractionExport(
+      getExtractionGroups()
+    );
+    const blob = new Blob([exportArtifact.content], {
+      type: exportArtifact.mimeType,
     });
     const url = URL.createObjectURL(blob);
     const anchor = window.document.createElement("a");
+
     anchor.href = url;
-    anchor.download = "documind-extraction.csv";
+    anchor.download = exportArtifact.filename;
+    window.document.body.append(anchor);
     anchor.click();
+    anchor.remove();
     URL.revokeObjectURL(url);
   }
 
@@ -1698,6 +1714,7 @@ function DocumentsTab() {
         documents={documents}
         extractionPrompt={extractionPrompt}
         extractionState={extractionState}
+        groups={getExtractionGroups()}
         rows={sortedExtractionRows}
         onExtractionPromptChange={setExtractionPrompt}
         onClearDocumentFocus={clearExtractionFocus}
@@ -1705,7 +1722,6 @@ function DocumentsTab() {
           handleExtractionDocumentSelection
         }
         onExtract={runExtraction}
-        onSort={handleSort}
         onExportCsv={exportCsv}
       />
 

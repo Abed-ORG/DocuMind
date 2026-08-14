@@ -2,6 +2,9 @@ import { GoogleGenAI } from "@google/genai";
 
 import { env } from "../config/env.js";
 import {
+  buildAiUsageFromResponse,
+} from "./aiUsageService.js";
+import {
   buildComparisonPrompt,
   buildRagPrompt,
   buildStructuredExtractionPrompt,
@@ -167,7 +170,286 @@ function normalizeExtractionValue(value, maxLength = 1000) {
     : normalizedValue;
 }
 
-function normalizeExtractionRows(rows) {
+function toPositiveInteger(value) {
+  const number = Number(value);
+
+  return Number.isInteger(number) && number > 0
+    ? number
+    : null;
+}
+
+function toNonNegativeInteger(value) {
+  const number = Number(value);
+
+  return Number.isInteger(number) && number >= 0
+    ? number
+    : null;
+}
+
+function cleanExtractionLabel(value, fallback = "") {
+  const normalized = normalizeExtractionValue(
+    value,
+    180
+  )
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  return normalized.replace(/\b\w/g, (letter) =>
+    letter.toUpperCase()
+  );
+}
+
+function createExtractionKey(label, fallback) {
+  const normalized = normalizeExtractionValue(label)
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+([a-z0-9])/g, (_, letter) =>
+      letter.toUpperCase()
+    );
+
+  return normalized || fallback;
+}
+
+function addExtractionAlias(aliases, value) {
+  const normalized = normalizeExtractionValue(value, 180);
+
+  if (normalized && !aliases.includes(normalized)) {
+    aliases.push(normalized);
+  }
+}
+
+function createLabelKeyAlias(label) {
+  return normalizeExtractionValue(label)
+    .replace(/\s+/g, "")
+    .replace(/^./, (letter) => letter.toLowerCase());
+}
+
+function createSnakeCaseAlias(label) {
+  return normalizeExtractionValue(label)
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function createRecordColumnAliases({
+  column,
+  label,
+  key,
+  fallback,
+}) {
+  const aliases = [];
+  const seedValues = [
+    column?.key,
+    column?.label,
+    column?.name,
+    typeof column === "string" ? column : "",
+    label,
+    key,
+    fallback,
+  ];
+
+  seedValues.forEach((value) => {
+    addExtractionAlias(aliases, value);
+    addExtractionAlias(
+      aliases,
+      createExtractionKey(value, "")
+    );
+    addExtractionAlias(aliases, createLabelKeyAlias(value));
+    addExtractionAlias(aliases, createSnakeCaseAlias(value));
+    addExtractionAlias(
+      aliases,
+      normalizeExtractionValue(value).toLowerCase()
+    );
+  });
+
+  return aliases;
+}
+
+function isCsvSource(source = {}) {
+  return /\.csv$/i.test(
+    String(source.documentName ?? source.source ?? "")
+  );
+}
+
+function normalizeExtractionSource(source, fallback = {}) {
+  if (typeof source === "string") {
+    return {
+      documentName: normalizeExtractionValue(
+        fallback.documentName,
+        255
+      ),
+      pageNumber: toPositiveInteger(fallback.pageNumber),
+      chunkIndex: toNonNegativeInteger(fallback.chunkIndex),
+      sourceLabel: normalizeExtractionValue(source, 260),
+    };
+  }
+
+  const documentName = normalizeExtractionValue(
+    source?.documentName ??
+      source?.document ??
+      source?.fileName ??
+      source?.filename ??
+      fallback.documentName,
+    255
+  );
+  const pageNumber = toPositiveInteger(
+    source?.pageNumber ??
+      source?.page ??
+      fallback.pageNumber
+  );
+  const chunkIndex = toNonNegativeInteger(
+    source?.chunkIndex ??
+      source?.chunk ??
+      fallback.chunkIndex
+  );
+
+  return {
+    documentName,
+    pageNumber: isCsvSource({
+      documentName,
+    })
+      ? null
+      : pageNumber,
+    chunkIndex,
+    sourceLabel: normalizeExtractionValue(
+      source?.sourceLabel ?? source?.label,
+      260
+    ),
+  };
+}
+
+function formatExtractionSource(source = {}) {
+  if (source.sourceLabel) {
+    return source.sourceLabel;
+  }
+
+  if (!source.documentName) {
+    return "";
+  }
+
+  if (isCsvSource(source)) {
+    return source.documentName;
+  }
+
+  if (source.pageNumber) {
+    return `${source.documentName}, p. ${source.pageNumber}`;
+  }
+
+  if (source.chunkIndex !== null && source.chunkIndex !== undefined) {
+    return `${source.documentName}, chunk ${source.chunkIndex}`;
+  }
+
+  return source.documentName;
+}
+
+function isMoneyLike({ label, type, value }) {
+  const text = `${label ?? ""} ${type ?? ""} ${value ?? ""}`.toLowerCase();
+
+  return (
+    /\b(money|currency|amount|price|cost|total|value|balance|salary|revenue|usd|eur|gbp)\b/.test(
+      text
+    ) || /[$€£]\s*\d/.test(String(value ?? ""))
+  );
+}
+
+function isDateLike({ label, type }) {
+  return /\b(date|deadline|due|start|end|effective|expiry|expiration)\b/i.test(
+    `${label ?? ""} ${type ?? ""}`
+  );
+}
+
+function formatMoneyValue(value) {
+  const text = normalizeExtractionValue(value, 120);
+  const match = text.match(
+    /[-+]?\$?\s*([0-9][0-9,]*)(?:\.([0-9]+))?/
+  );
+
+  if (!match) {
+    return text;
+  }
+
+  const number = Number(
+    `${match[1].replace(/,/g, "")}.${match[2] ?? "0"}`
+  );
+
+  if (!Number.isFinite(number)) {
+    return text;
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(number);
+}
+
+function formatDateValue(value) {
+  const text = normalizeExtractionValue(value, 120);
+  const isoMatch = text.match(
+    /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/
+  );
+
+  if (!isoMatch) {
+    return text;
+  }
+
+  const date = new Date(
+    Number(isoMatch[1]),
+    Number(isoMatch[2]) - 1,
+    Number(isoMatch[3])
+  );
+
+  if (Number.isNaN(date.getTime())) {
+    return text;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatExtractionCell(value, { label, type } = {}) {
+  const normalized = normalizeExtractionValue(value);
+
+  if (!normalized) {
+    return "";
+  }
+
+  if (
+    isMoneyLike({
+      label,
+      type,
+      value: normalized,
+    })
+  ) {
+    return formatMoneyValue(normalized);
+  }
+
+  if (
+    isDateLike({
+      label,
+      type,
+    })
+  ) {
+    return formatDateValue(normalized);
+  }
+
+  return normalized;
+}
+
+function normalizeLegacyExtractionRows(rows) {
   if (!Array.isArray(rows)) {
     return [];
   }
@@ -175,48 +457,54 @@ function normalizeExtractionRows(rows) {
   return rows
     .map((row) => {
       if (Array.isArray(row)) {
+        const source = normalizeExtractionSource(row[3]);
+        const sourceLabel =
+          formatExtractionSource(source) ||
+          normalizeExtractionValue(row[3], 260);
+        const field = cleanExtractionLabel(row[0]);
+        const type = normalizeExtractionValue(row[2], 120);
+
         return {
-          field: normalizeExtractionValue(row[0], 180),
-          value: normalizeExtractionValue(row[1]),
-          type: normalizeExtractionValue(row[2], 120),
-          source: normalizeExtractionValue(row[3], 260),
-          documentName: "",
-          pageNumber: null,
-          chunkIndex: null,
+          field,
+          value: formatExtractionCell(row[1], {
+            label: field,
+            type,
+          }),
+          type,
+          source: sourceLabel,
+          documentName: source.documentName,
+          pageNumber: source.pageNumber,
+          chunkIndex: source.chunkIndex,
           evidence: "",
         };
       }
 
+      const source = normalizeExtractionSource(
+        row?.source ?? row?.s,
+        row
+      );
+      const field = cleanExtractionLabel(
+        row?.field ?? row?.f
+      );
+      const type = normalizeExtractionValue(
+        row?.type ?? row?.t,
+        120
+      );
+
       return {
-        field: normalizeExtractionValue(
-          row?.field ?? row?.f,
-          180
+        field,
+        value: formatExtractionCell(
+          row?.value ?? row?.v,
+          {
+            label: field,
+            type,
+          }
         ),
-        value: normalizeExtractionValue(
-          row?.value ?? row?.v
-        ),
-        type: normalizeExtractionValue(
-          row?.type ?? row?.t,
-          120
-        ),
-        source: normalizeExtractionValue(
-          row?.source ?? row?.s,
-          260
-        ),
-        documentName: normalizeExtractionValue(
-          row?.documentName,
-          255
-        ),
-        pageNumber:
-          Number.isInteger(Number(row?.pageNumber)) &&
-          Number(row.pageNumber) > 0
-            ? Number(row.pageNumber)
-            : null,
-        chunkIndex:
-          Number.isInteger(Number(row?.chunkIndex)) &&
-          Number(row.chunkIndex) >= 0
-            ? Number(row.chunkIndex)
-            : null,
+        type,
+        source: formatExtractionSource(source),
+        documentName: source.documentName,
+        pageNumber: source.pageNumber,
+        chunkIndex: source.chunkIndex,
         evidence: normalizeExtractionValue(
           row?.evidence,
           1200
@@ -232,10 +520,321 @@ function normalizeExtractionRows(rows) {
     );
 }
 
-function normalizeExtractionTable(parsedJson) {
+function normalizeExtractionFields(fields) {
+  return normalizeLegacyExtractionRows(fields);
+}
+
+function normalizeRecordColumns(columns, rows = []) {
+  const normalizedColumns = Array.isArray(columns)
+    ? columns
+        .map((column, index) => {
+          const label = cleanExtractionLabel(
+            column?.label ?? column?.name ?? column?.key ?? column,
+            `Column ${index + 1}`
+          );
+          const key = createExtractionKey(
+            column?.key ?? label,
+            `column${index + 1}`
+          );
+
+          return {
+            key,
+            label,
+            type: normalizeExtractionValue(column?.type, 120),
+            aliases: createRecordColumnAliases({
+              column,
+              label,
+              key,
+              fallback: `column${index + 1}`,
+            }),
+          };
+        })
+        .filter((column) => column.key && column.label)
+    : [];
+
+  if (normalizedColumns.length > 0) {
+    return normalizedColumns;
+  }
+
+  const firstValues =
+    rows.find((row) => row?.values && typeof row.values === "object")
+      ?.values ?? {};
+
+  return Object.keys(firstValues).map((key, index) => ({
+    key: createExtractionKey(key, `column${index + 1}`),
+    label: cleanExtractionLabel(key, `Column ${index + 1}`),
+    type: "",
+    aliases: createRecordColumnAliases({
+      column: key,
+      label: cleanExtractionLabel(key, `Column ${index + 1}`),
+      key: createExtractionKey(key, `column${index + 1}`),
+      fallback: `column${index + 1}`,
+    }),
+  }));
+}
+
+function readRecordValue(rawValues, column, columnIndex) {
+  if (Array.isArray(rawValues)) {
+    return rawValues[columnIndex];
+  }
+
+  if (!rawValues || typeof rawValues !== "object") {
+    return undefined;
+  }
+
+  const aliases = Array.isArray(column.aliases)
+    ? column.aliases
+    : [column.key, column.label];
+
+  for (const alias of aliases) {
+    if (
+      Object.prototype.hasOwnProperty.call(rawValues, alias)
+    ) {
+      return rawValues[alias];
+    }
+  }
+
+  const lowerCaseAliases = new Set(
+    aliases.map((alias) => String(alias).toLowerCase())
+  );
+  const matchingKey = Object.keys(rawValues).find((key) =>
+    lowerCaseAliases.has(String(key).toLowerCase())
+  );
+
+  return matchingKey ? rawValues[matchingKey] : undefined;
+}
+
+function normalizeRecordRows(rows, columns) {
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+
+  return rows
+    .map((row) => {
+      const rawValues =
+        Array.isArray(row)
+          ? row
+          : row?.values && typeof row.values === "object"
+          ? row.values
+          : row;
+      const source = normalizeExtractionSource(
+        row?.source,
+        row
+      );
+      const values = {};
+
+      columns.forEach((column) => {
+        const columnIndex = columns.findIndex(
+          (item) => item.key === column.key
+        );
+        const rawValue = readRecordValue(
+          rawValues,
+          column,
+          columnIndex
+        );
+
+        values[column.key] = formatExtractionCell(rawValue, {
+          label: column.label,
+          type: column.type,
+        });
+      });
+
+      return {
+        values,
+        source,
+        sourceLabel: formatExtractionSource(source),
+        evidence: normalizeExtractionValue(
+          row?.evidence,
+          1200
+        ),
+      };
+    })
+    .filter((row) =>
+      columns.some((column) => row.values[column.key])
+    );
+}
+
+function isRecordSetLike(value) {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      (Array.isArray(value.rows) ||
+        Array.isArray(value.records) ||
+        Array.isArray(value.items) ||
+        Array.isArray(value.columns) ||
+        value.name ||
+        value.title)
+  );
+}
+
+function coerceRecordSets(recordSets, parsedJson = {}) {
+  if (Array.isArray(recordSets)) {
+    if (recordSets.length === 0) {
+      return [];
+    }
+
+    return recordSets.some(isRecordSetLike)
+      ? recordSets
+      : [
+          {
+            name: parsedJson.name ?? parsedJson.title,
+            columns: parsedJson.columns,
+            rows: recordSets,
+          },
+        ];
+  }
+
+  if (isRecordSetLike(recordSets)) {
+    return [recordSets];
+  }
+
+  return [];
+}
+
+function getRecordSetRows(recordSet) {
+  if (Array.isArray(recordSet?.rows)) {
+    return recordSet.rows;
+  }
+
+  if (Array.isArray(recordSet?.records)) {
+    return recordSet.records;
+  }
+
+  if (Array.isArray(recordSet?.items)) {
+    return recordSet.items;
+  }
+
+  return [];
+}
+
+function normalizeRecordSets(recordSets, parsedJson = {}) {
+  const normalizedRecordSets = coerceRecordSets(
+    recordSets,
+    parsedJson
+  );
+
+  return normalizedRecordSets
+    .map((recordSet, index) => {
+      const rawRows = getRecordSetRows(recordSet);
+      const columns = normalizeRecordColumns(
+        recordSet?.columns,
+        rawRows
+      );
+      const rows = normalizeRecordRows(
+        rawRows,
+        columns
+      );
+
+      return {
+        id: `records-${index + 1}`,
+        name: cleanExtractionLabel(
+          recordSet?.name ?? recordSet?.title,
+          `Records ${index + 1}`
+        ),
+        columns,
+        rows,
+      };
+    })
+    .filter(
+      (recordSet) =>
+        recordSet.columns.length > 0 &&
+        recordSet.rows.length > 0
+    );
+}
+
+function buildFieldGroup(fields) {
+  if (fields.length === 0) {
+    return null;
+  }
+
+  return {
+    id: "fields",
+    kind: "fields",
+    title: "Single-Value Fields",
+    columns: [
+      {
+        key: "field",
+        label: "Field",
+      },
+      {
+        key: "value",
+        label: "Value",
+      },
+      {
+        key: "type",
+        label: "Type",
+      },
+      {
+        key: "source",
+        label: "Source",
+      },
+    ],
+    rows: fields.map((field) => ({
+      values: {
+        field: field.field,
+        value: field.value,
+        type: field.type,
+        source: field.source,
+      },
+      source: {
+        documentName: field.documentName,
+        pageNumber: field.pageNumber,
+        chunkIndex: field.chunkIndex,
+      },
+      evidence: field.evidence,
+    })),
+  };
+}
+
+function buildRecordGroup(recordSet) {
+  const sourceColumn = {
+    key: "source",
+    label: "Source",
+  };
+
+  return {
+    id: recordSet.id,
+    kind: "records",
+    title: recordSet.name,
+    columns: [
+      ...recordSet.columns.map((column) => ({
+        key: column.key,
+        label: column.label,
+        type: column.type,
+      })),
+      sourceColumn,
+    ],
+    rows: recordSet.rows.map((row) => ({
+      values: {
+        ...row.values,
+        source: row.sourceLabel,
+      },
+      source: row.source,
+      evidence: row.evidence,
+    })),
+  };
+}
+
+export function normalizeStructuredExtractionResult(parsedJson) {
   const rows = Array.isArray(parsedJson)
     ? parsedJson
     : parsedJson?.rows;
+  const legacyFields = normalizeLegacyExtractionRows(rows);
+  const fields = normalizeExtractionFields(
+    parsedJson?.fields ?? []
+  );
+  const normalizedFields =
+    fields.length > 0 ? fields : legacyFields;
+  const recordSets = normalizeRecordSets(
+    parsedJson?.recordSets ??
+      parsedJson?.records ??
+      [],
+    parsedJson
+  );
+  const groups = [
+    buildFieldGroup(normalizedFields),
+    ...recordSets.map(buildRecordGroup),
+  ].filter(Boolean);
 
   return {
     columns: [
@@ -244,7 +843,10 @@ function normalizeExtractionTable(parsedJson) {
       "type",
       "source",
     ],
-    rows: normalizeExtractionRows(rows),
+    rows: normalizedFields,
+    fields: normalizedFields,
+    recordSets,
+    groups,
   };
 }
 
@@ -499,6 +1101,10 @@ export async function generateRagAnswer({
     ),
     sources: prompt.sources,
     model: selectedModel,
+    usage: buildAiUsageFromResponse({
+      response,
+      model: selectedModel,
+    }),
   };
 }
 
@@ -628,6 +1234,10 @@ export async function generateComparisonAnswer({
     ),
     sources: prompt.sources,
     model: selectedModel,
+    usage: buildAiUsageFromResponse({
+      response,
+      model: selectedModel,
+    }),
   };
 }
 
@@ -700,7 +1310,7 @@ export async function generateStructuredExtraction({
   let table;
 
   try {
-    table = normalizeExtractionTable(
+    table = normalizeStructuredExtractionResult(
       parseJsonObject(answer)
     );
   } catch (error) {
@@ -720,6 +1330,10 @@ export async function generateStructuredExtraction({
     rawJson: answer,
     sources: extractionPrompt.sources,
     model: selectedModel,
+    usage: buildAiUsageFromResponse({
+      response,
+      model: selectedModel,
+    }),
   };
 }
 
@@ -762,7 +1376,7 @@ export async function compareWorkspaceDocuments({
 export async function extractWorkspaceFields({
   workspaceId,
   prompt,
-  limit = 4,
+  limit = 8,
   documentIds,
 } = {}) {
   const sourceChunks = await searchWorkspaceChunks({
@@ -781,10 +1395,14 @@ export async function extractWorkspaceFields({
         "source",
       ],
       rows: [],
+      fields: [],
+      recordSets: [],
+      groups: [],
       rawJson:
-        "{\"columns\":[\"field\",\"value\",\"type\",\"source\"],\"rows\":[]}",
+        "{\"fields\":[],\"recordSets\":[]}",
       sources: [],
       model: env.geminiGenerativeModel,
+      usage: null,
     };
   }
 

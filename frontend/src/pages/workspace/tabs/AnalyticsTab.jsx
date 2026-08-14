@@ -6,8 +6,10 @@ import {
 import { useParams } from "react-router";
 import {
   BarChart3,
+  Coins,
   Database,
   FileText,
+  Gauge,
   Info,
   MessageSquareText,
   PieChart,
@@ -56,6 +58,15 @@ function formatNumber(value) {
   return new Intl.NumberFormat("en").format(
     value ?? 0
   );
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat("en", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  }).format(value ?? 0);
 }
 
 function formatChartDate(value) {
@@ -148,13 +159,18 @@ function AnalyticsMetric({
   icon: Icon,
   label,
   value,
+  formatter = formatNumber,
+  info,
 }) {
   return (
     <article className="analytics-metric">
       <Icon size={18} />
       <div>
-        <strong>{formatNumber(value)}</strong>
-        <span>{label}</span>
+        <strong>{formatter(value)}</strong>
+        <span>
+          {label}
+          {info ? <InfoTooltip label={info} /> : null}
+        </span>
       </div>
     </article>
   );
@@ -318,6 +334,9 @@ function AnalyticsTab() {
     (analytics?.summary?.totalQueries ?? 0) > 0;
   const hasTypeData =
     (analytics?.documentTypes?.length ?? 0) > 0;
+  const tokenUsage =
+    analytics?.summary?.tokenUsage ?? {};
+  const tokenCostRates = tokenUsage.rates ?? {};
   const donutGradient = buildDonutGradient(
     analytics?.documentTypes ?? []
   );
@@ -387,6 +406,31 @@ function AnalyticsTab() {
           value={
             analytics?.summary?.indexedChunkCount
           }
+        />
+        <AnalyticsMetric
+          icon={Gauge}
+          label="AI tokens"
+          value={tokenUsage.totalTokenCount}
+          info={`${formatNumber(
+            tokenUsage.inputTokenCount
+          )} input tokens, ${formatNumber(
+            tokenUsage.outputTokenCount
+          )} output tokens across ${formatNumber(
+            tokenUsage.requestCount
+          )} AI requests in this date range.`}
+        />
+        <AnalyticsMetric
+          icon={Coins}
+          label="Est. token cost"
+          value={tokenUsage.estimatedCostUsd}
+          formatter={formatCurrency}
+          info={`Estimated from recorded token usage at $${Number(
+            tokenCostRates.inputCostPerMillionTokens ??
+              0
+          ).toFixed(2)} per 1M input tokens and $${Number(
+            tokenCostRates.outputCostPerMillionTokens ??
+              0
+          ).toFixed(2)} per 1M output tokens.`}
         />
       </div>
 
